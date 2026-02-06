@@ -5,7 +5,7 @@ authors = ["rustdesk <info@rustdesk.com>"]
 edition = "2021"
 build= "build.rs"
 description = "RustDesk Remote Desktop"
-default-run = "rustdesk"
+default-run = "multidesk"
 rust-version = "1.75"
 
 [lib]
@@ -19,6 +19,10 @@ path = "src/naming.rs"
 [[bin]]
 name = "service"
 path = "src/service.rs"
+
+[[bin]]
+name = "multidesk"
+path = "src/main.rs"
 
 [features]
 inline = []
@@ -213,10 +217,10 @@ exclude = ["vdi/host", "examples/custom_plugin"]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 Purslane Ltd. All rights reserved."
-ProductName = "RustDesk"
-FileDescription = "RustDesk Remote Desktop"
-OriginalFilename = "rustdesk.exe"
+LegalCopyright = "Copyright © 2025 MultiSaaS Business Systems (Pty) Ltd. All rights reserved."
+ProductName = "MultiDesk"
+FileDescription = "MultiDesk Remote Desktop"
+OriginalFilename = "multidesk.exe"
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"

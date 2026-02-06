@@ -1802,6 +1802,47 @@ pub fn load_custom_client() {
         };
         read_custom_client(&data.trim());
     }
+    
+    // Set MultiDesk defaults if executable name contains "multidesk"
+    set_multidesk_defaults();
+}
+
+fn set_multidesk_defaults() {
+    use hbb_common::config::Config;
+    
+    // Check if executable name contains "multidesk" (case-insensitive)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_name) = exe_path.file_stem() {
+            let exe_name_lower = exe_name.to_string_lossy().to_lowercase();
+            if exe_name_lower.contains("multidesk") {
+                // Set app name to MultiDesk if not already set
+                let current_app_name = config::APP_NAME.read().unwrap().clone();
+                if current_app_name == "RustDesk" || current_app_name.is_empty() {
+                    *config::APP_NAME.write().unwrap() = "MultiDesk".to_owned();
+                }
+                
+                // Set default server configuration if not already configured
+                let id_server = "epyc1admin.multisaas.co.za";
+                let relay_server = "epyc1admin.multisaas.co.za";
+                let api_server = ""; // Leave blank as requested
+                let key = "P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=";
+                
+                // Only set if not already configured
+                if Config::get_option("custom-rendezvous-server").is_empty() {
+                    Config::set_option("custom-rendezvous-server".to_owned(), id_server.to_owned());
+                }
+                if Config::get_option("relay-server").is_empty() {
+                    Config::set_option("relay-server".to_owned(), relay_server.to_owned());
+                }
+                if Config::get_option("api-server").is_empty() {
+                    Config::set_option("api-server".to_owned(), api_server.to_owned());
+                }
+                if Config::get_option("key").is_empty() {
+                    Config::set_option("key".to_owned(), key.to_owned());
+                }
+            }
+        }
+    }
 }
 
 fn read_custom_client_advanced_settings(
