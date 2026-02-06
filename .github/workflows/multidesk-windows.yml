@@ -41,8 +41,17 @@ jobs:
       - name: Build MultiDesk
         run: cargo build --release --bin multidesk --target x86_64-pc-windows-msvc
 
+      - name: Download sciter.dll
+        shell: pwsh
+        run: |
+          $sciterPath = "target/x86_64-pc-windows-msvc/release/sciter.dll"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll" -OutFile $sciterPath
+          Write-Host "Downloaded sciter.dll to $sciterPath"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: multidesk-windows
-          path: target/x86_64-pc-windows-msvc/release/multidesk.exe
+          path: |
+            target/x86_64-pc-windows-msvc/release/multidesk.exe
+            target/x86_64-pc-windows-msvc/release/sciter.dll
