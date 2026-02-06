@@ -1,0 +1,41 @@
+name: Build MultiDesk (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust target
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Setup vcpkg
+        shell: pwsh
+        run: |
+          if (-not $Env:VCPKG_ROOT) {
+            $Env:VCPKG_ROOT = Join-Path $Env:USERPROFILE "vcpkg"
+          }
+          if (-not (Test-Path $Env:VCPKG_ROOT)) {
+            git clone https://github.com/microsoft/vcpkg $Env:VCPKG_ROOT
+          }
+          Set-Location $Env:VCPKG_ROOT
+          if (-not (Test-Path ".\vcpkg.exe")) {
+            .\bootstrap-vcpkg.bat
+          }
+          .\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+      - name: Build MultiDesk
+        run: cargo build --release --bin multidesk --target x86_64-pc-windows-msvc
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multidesk-windows
+          path: target/release/multidesk.exe
