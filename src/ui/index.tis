@@ -471,9 +471,15 @@ function open_proxy_dialog() {
 
 function updateTheme() {
     var root_element = self;
-    if (handler.get_option("allow-darktheme") == "Y") {
+    var darktheme_option = handler.get_option("allow-darktheme");
+    // Default to dark theme if option is not set (first run)
+    if (darktheme_option == "Y" || darktheme_option == "") {
         // enable dark theme
         root_element.attributes.toggleClass("darktheme", true);
+        // Set the option to "Y" if it was empty (first run)
+        if (darktheme_option == "") {
+            handler.set_option("allow-darktheme", "Y");
+        }
     } else {
         // disable dark theme
         root_element.attributes.toggleClass("darktheme", false);
