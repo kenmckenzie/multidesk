@@ -38,6 +38,10 @@ jobs:
           # Export VCPKG_ROOT for subsequent steps
           Add-Content -Path $Env:GITHUB_ENV -Value "VCPKG_ROOT=$Env:VCPKG_ROOT"
 
+      - name: Generate inline UI files
+        run: python res/inline-sciter.py
+        shell: pwsh
+
       - name: Build MultiDesk
         run: cargo build --release --bin multidesk --target x86_64-pc-windows-msvc --features inline
 
