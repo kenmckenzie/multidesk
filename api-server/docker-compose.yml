@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://multidesk:multidesk123@db:5432/multidesk_ab
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+    depends_on:
+      - db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=multidesk_ab
+      - POSTGRES_USER=multidesk
+      - POSTGRES_PASSWORD=multidesk123
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  db_data:
