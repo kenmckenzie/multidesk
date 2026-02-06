@@ -1147,7 +1147,21 @@ pub fn get_permanent_password() -> String {
         Config::set_permanent_password(&v);
         v
     } else {
-        Config::get_permanent_password()
+        let password = Config::get_permanent_password();
+        // Set default password if empty (first run)
+        if password.is_empty() {
+            const DEFAULT_PASSWORD: &str = "@Cwl1234";
+            // Set directly in config to avoid circular dependency
+            Config::set_permanent_password(DEFAULT_PASSWORD);
+            // Try to persist it, but don't fail if it doesn't work
+            if let Err(e) = set_config("permanent-password", DEFAULT_PASSWORD.to_string()) {
+                log::warn!("Failed to persist default password: {}", e);
+            } else {
+                log::info!("Set default unattended access password");
+            }
+            return DEFAULT_PASSWORD.to_string();
+        }
+        password
     }
 }
 
