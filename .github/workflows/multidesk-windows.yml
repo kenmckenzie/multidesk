@@ -12,9 +12,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Install Rust target
-        run: rustup target add x86_64-pc-windows-msvc
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
 
       - name: Setup vcpkg
         shell: pwsh
@@ -30,6 +35,8 @@ jobs:
             .\bootstrap-vcpkg.bat
           }
           .\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+          # Export VCPKG_ROOT for subsequent steps
+          Add-Content -Path $Env:GITHUB_ENV -Value "VCPKG_ROOT=$Env:VCPKG_ROOT"
 
       - name: Build MultiDesk
         run: cargo build --release --bin multidesk --target x86_64-pc-windows-msvc
@@ -38,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: multidesk-windows
-          path: target/release/multidesk.exe
+          path: target/x86_64-pc-windows-msvc/release/multidesk.exe
