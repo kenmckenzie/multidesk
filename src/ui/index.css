@@ -137,7 +137,6 @@ span.clear-input:hover {
     border-spacing: 0.5em;
     border-left: color(accent) solid 2px;
     padding-left: 0.5em;
-    padding-right: 2em;
 }
 
 .your-desktop input[type=text] {
@@ -313,12 +312,11 @@ div.remote-session .text > div {
 }
 
 svg#menu {
-    size: 1.8em;
+    size: 1em;
     background: none;
     padding: 0.5em;
     margin: 0.5em;
     color: color(light-text);
-    cursor: pointer;
 }
 
 .remote-session-list svg#menu {
@@ -386,9 +384,7 @@ div#myid, div#tags-label {
 
 div#myid svg#menu, div#tags-label svg#menu {
     position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    right: -1em;
 }
 
 div#tags-label svg#menu:hover {
