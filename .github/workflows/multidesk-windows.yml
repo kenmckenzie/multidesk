@@ -54,8 +54,13 @@ jobs:
 
       - name: Code Sign Executables (Optional)
         shell: pwsh
-        if: ${{ secrets.CODE_SIGNING_CERT != '' }}
         run: |
+          # Check if code signing secrets are configured
+          if (-not "${{ secrets.CODE_SIGNING_CERT }}" -or -not "${{ secrets.CODE_SIGNING_PASSWORD }}") {
+            Write-Host "Code signing secrets not configured. Skipping code signing."
+            exit 0
+          }
+          
           $exePath = "target/x86_64-pc-windows-msvc/release/multidesk.exe"
           $dllPath = "target/x86_64-pc-windows-msvc/release/sciter.dll"
           
