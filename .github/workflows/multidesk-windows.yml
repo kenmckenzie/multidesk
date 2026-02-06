@@ -52,6 +52,56 @@ jobs:
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll" -OutFile $sciterPath
           Write-Host "Downloaded sciter.dll to $sciterPath"
 
+      - name: Code Sign Executables (Optional)
+        shell: pwsh
+        if: ${{ secrets.CODE_SIGNING_CERT != '' }}
+        run: |
+          $exePath = "target/x86_64-pc-windows-msvc/release/multidesk.exe"
+          $dllPath = "target/x86_64-pc-windows-msvc/release/sciter.dll"
+          
+          # Decode certificate from base64
+          $certBytes = [Convert]::FromBase64String("${{ secrets.CODE_SIGNING_CERT }}")
+          $certPath = "$env:TEMP\multidesk_cert.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+          
+          # Find signtool.exe (usually in Windows SDK)
+          $signtool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | 
+            Select-Object -First 1 -ExpandProperty FullName
+          
+          if (-not $signtool) {
+            $signtool = Get-ChildItem -Path "$env:ProgramFiles\Windows Kits" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | 
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          
+          if (-not $signtool) {
+            Write-Warning "signtool.exe not found. Skipping code signing."
+            exit 0
+          }
+          
+          Write-Host "Signing multidesk.exe..."
+          & $signtool sign /f $certPath /p "${{ secrets.CODE_SIGNING_PASSWORD }}" /t http://timestamp.digicert.com /fd SHA256 $exePath
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to sign multidesk.exe"
+          } else {
+            Write-Host "Successfully signed multidesk.exe"
+          }
+          
+          Write-Host "Signing sciter.dll..."
+          & $signtool sign /f $certPath /p "${{ secrets.CODE_SIGNING_PASSWORD }}" /t http://timestamp.digicert.com /fd SHA256 $dllPath
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to sign sciter.dll"
+          } else {
+            Write-Host "Successfully signed sciter.dll"
+          }
+          
+          # Verify signatures
+          Write-Host "Verifying signatures..."
+          & $signtool verify /pa /v $exePath
+          & $signtool verify /pa /v $dllPath
+          
+          # Clean up certificate file
+          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
