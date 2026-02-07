@@ -1,25 +1,25 @@
-# lejianwen/rustdesk-api - API server only (for trying address book with MultiDesk).
-# For full ID/relay + API stack, see lejianwen/rustdesk-api wiki.
-# Usage: docker compose up -d   then open http://localhost:21114/_admin/
-
 services:
   rustdesk-api:
     image: lejianwen/rustdesk-api:latest
     container_name: rustdesk-api
-    ports:
-      - "21114:21114"
+    network_mode: "host"
     environment:
       - TZ=UTC
       - RUSTDESK_API_LANG=en
-      # API server URL as seen by clients (use hostname or IP in production)
-      - RUSTDESK_API_RUSTDESK_API_SERVER=http://localhost:21114
-      # Optional: use your own ID/relay server; leave empty for address-book-only trial
-      - RUSTDESK_API_RUSTDESK_ID_SERVER=
-      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=
-      - RUSTDESK_API_RUSTDESK_KEY=
+
+      # API URL as seen by clients
+      - RUSTDESK_API_RUSTDESK_API_SERVER=http://epyc1admin.multisaas.co.za:21114
+
+      # ID + Relay (on the host network)
+      - RUSTDESK_API_RUSTDESK_ID_SERVER=localhost:21116
+      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=localhost:21117
+
+      # Must match hbbs/hbbr key
+      - RUSTDESK_API_RUSTDESK_KEY=P9AGH4SDGX2F6s3vu+VXIqfxBIYCplc1HrNGssqwQN8=
     volumes:
       - rustdesk-api-data:/app/data
     restart: unless-stopped
 
 volumes:
   rustdesk-api-data:
+

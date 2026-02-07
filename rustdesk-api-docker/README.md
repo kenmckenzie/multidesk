@@ -30,15 +30,14 @@ If no password appears, try `admin` / `admin` and change it after login.
 
 Address book will sync after login.
 
-## Optional: ID and relay server
+## ID and relay server (same host)
 
-This compose runs **only the API server** (address book, users, Web Admin). For full remote desktop you need an ID/relay server (e.g. [rustdesk-server](https://github.com/rustdesk/rustdesk-server) or [lejianwen/rustdesk-server](https://github.com/lejianwen/rustdesk-server)). Then set in this compose:
+This compose is set up for a server that also runs RustDesk ID (hbbs) and Relay (hbbr) on the same host. The API is configured with:
 
-- `RUSTDESK_API_RUSTDESK_ID_SERVER=<host>:21116`
-- `RUSTDESK_API_RUSTDESK_RELAY_SERVER=<host>:21117`
-- `RUSTDESK_API_RUSTDESK_KEY=<your-key>` (if required)
+- `RUSTDESK_API_RUSTDESK_ID_SERVER=epyc1admin.multisaas.co.za:21116`
+- `RUSTDESK_API_RUSTDESK_RELAY_SERVER=epyc1admin.multisaas.co.za:21117`
 
-See [lejianwen/rustdesk-api wiki](https://github.com/lejianwen/rustdesk-api/wiki) for full Docker setups.
+If your key differs from hbbs/hbbr, set `RUSTDESK_API_RUSTDESK_KEY` in the compose to match. If the API runs in Docker and cannot reach hbbs/hbbr on the host, ensure the hostname resolves from inside the container to the host (e.g. use the host’s LAN IP or add `extra_hosts` / host network as in the [lejianwen/rustdesk-api wiki](https://github.com/lejianwen/rustdesk-api/wiki)).
 
 ## Stop
 

@@ -285,8 +285,10 @@ class AbModel {
           if (total == 0) total = json['total'];
           if (json.containsKey('data')) {
             final data = json['data'];
-            if (data is List) {
-              for (final profile in data) {
+            final List<dynamic> list = _parseDataAsList(data);
+            for (final profile in list) {
+              if (profile is! Map<String, dynamic>) continue;
+              try {
                 final u = AbProfile.fromJson(profile);
                 int index = profiles.indexWhere((e) => e.name == u.name);
                 if (index < 0) {
@@ -294,6 +296,8 @@ class AbModel {
                 } else {
                   profiles[index] = u;
                 }
+              } catch (_) {
+                debugPrint('_getSharedAbProfiles: skip invalid profile');
               }
             }
           }
@@ -980,7 +984,10 @@ class LegacyAb extends BaseAb {
             licensedDevices = json['licensed_devices'];
             // ignore: empty_catches
           } catch (e) {}
-          final data = jsonDecode(json['data']);
+          final raw = json['data'];
+          final data = raw is String
+              ? (raw.isEmpty ? null : jsonDecode(raw) as dynamic)
+              : raw;
           if (data != null) {
             _deserialize(data);
           }
@@ -1402,7 +1409,11 @@ class Ab extends BaseAb {
         var headers = getHttpHeaders();
         headers['Content-Type'] = "application/json";
         _setEmptyBody(headers);
-        final resp = await http.post(uri, headers: headers);
+        // rustdesk-api (lejianwen) uses GET for /api/ab/peers; try GET first, then POST
+        http.Response resp = await http.get(uri, headers: headers);
+        if (resp.statusCode == 405 || resp.statusCode == 404) {
+          resp = await http.post(uri, headers: headers);
+        }
         statusCode = resp.statusCode;
         Map<String, dynamic> json =
             _jsonDecodeRespMap(decode_http_response(resp), resp.statusCode);
@@ -1416,8 +1427,10 @@ class Ab extends BaseAb {
           if (total == 0) total = json['total'];
           if (json.containsKey('data')) {
             final data = json['data'];
-            if (data is List) {
-              for (final profile in data) {
+            final List<dynamic> list = _parseDataAsList(data);
+            for (final profile in list) {
+              if (profile is! Map<String, dynamic>) continue;
+              try {
                 final u = Peer.fromJson(profile);
                 int index = tmpPeers.indexWhere((e) => e.id == u.id);
                 if (index < 0) {
@@ -1425,6 +1438,8 @@ class Ab extends BaseAb {
                 } else {
                   tmpPeers[index] = u;
                 }
+              } catch (_) {
+                debugPrint('_fetchPeers: skip invalid peer entry');
               }
             }
           }
@@ -1921,6 +1936,18 @@ class DummyAb extends BaseAb {
 
   @override
   Future<void> syncFromRecent(List<Peer> recents) async {}
+}
+
+/// Parses API 'data' field which may be a List or a JSON string (e.g. rustdesk-api).
+List<dynamic> _parseDataAsList(dynamic data) {
+  if (data is List) return data;
+  if (data is String && data.isNotEmpty) {
+    try {
+      final decoded = jsonDecode(data);
+      if (decoded is List) return decoded;
+    } catch (_) {}
+  }
+  return [];
 }
 
 Map<String, dynamic> _jsonDecodeRespMap(String body, int statusCode) {
