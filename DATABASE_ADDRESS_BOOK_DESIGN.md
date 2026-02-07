@@ -2,6 +2,45 @@
 
 This document outlines the design for a self-hosted, database-based address book system with user permissions, similar to RustDesk's paid version.
 
+## Recommendation: Use an Existing RustDesk API Server
+
+**Prefer deploying an existing RustDesk-compatible API server instead of building a new one.** MultiDesk's client uses the same address book API as RustDesk, so any server that implements that API will work.
+
+### Recommended: lejianwen/rustdesk-api
+
+- **Repository:** [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) (Go)
+- **Features:** Full RustDesk PC API (login, address book, groups), Web Admin (users, devices, address books, tags, LDAP, OAuth), Web Client, SQLite/MySQL, Docker.
+- **Compatibility:** Implements the same API contract the MultiDesk Flutter client expects (`/api/login`, `/api/currentUser`, `/api/ab/*`, etc.).
+- **Deployment:** Set MultiDesk's **API Server** (Settings → ID/Relay Server) to your rustdesk-api URL (e.g. `http://your-server:21114`). No client code changes needed.
+
+### Why use rustdesk-api instead of writing new
+
+- One less codebase to maintain; focus on the MultiDesk client only.
+- Battle-tested server, admin UI, and optional LDAP/OIDC.
+- Same API surface MultiDesk already calls; no custom endpoints to implement.
+- Active community and releases.
+
+### When to use the in-repo api-server or a custom build
+
+- You need a minimal, single-binary or Python stack and are fine with fewer features.
+- You need strict control over schema, auth, or deployment and are willing to maintain it.
+- You are extending the API in ways rustdesk-api does not support.
+
+### Alternatives (other RustDesk API servers)
+
+| Project | Language | Status | Pros | Cons |
+|--------|----------|--------|------|------|
+| **[lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api)** | Go | **Recommended** — very active (e.g. v2.7 Sept 2025), 2.6k+ stars | Full API, Web Admin, LDAP/OAuth, SQLite/MySQL/PostgreSQL, Docker, frequent releases | Go stack (different from MultiDesk); v2.7 removed webclient2 (DMCA) |
+| **[sctg-development/sctgdesk-server](https://github.com/sctg-development/sctgdesk-server)** | **Rust** | Active; integrated ID/relay + API + web console in one | Same language as MultiDesk; Pro-like API (personal + shared address book); single binary or [standalone API](https://github.com/sctg-development/sctgdesk-api-server) | README states *not yet ready for production*; Bearer tokens in-memory only (re-login after restart); smaller community |
+| **[lantongxue/rustdesk-api-server-pro](https://github.com/lantongxue/rustdesk-api-server-pro)** | Go | Maintained, ~239 stars | Full address book API, Web UI, open-source | AGPL-3.0; smaller community than lejianwen |
+| **Official [RustDesk Server Pro](https://rustdesk.com/docs/en/self-host/rustdesk-server-pro/)** | — | Commercial | Official, production support | Paid; some past reports of address book API (403) issues |
+
+**Summary:** For **most up-to-date and stable** in the open-source ecosystem, **lejianwen/rustdesk-api** remains the best choice (active releases, large user base, production-ready). If you strongly prefer a **Rust** stack and can accept “development” status and token persistence limits, **sctgdesk-server** / **sctgdesk-api-server** is the Rust alternative to watch.
+
+The schema, endpoint list, and security notes below remain useful as **reference** for the API contract and for custom implementations.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -165,11 +204,11 @@ CREATE TABLE group_client_permissions (
 
 ## Integration with MultiDesk
 
-The existing address book system in MultiDesk already supports API-based address books. We need to:
+The existing address book system in MultiDesk already supports API-based address books. Any server that implements the RustDesk API (e.g. rustdesk-api) works without client changes.
 
-1. **Configure API Server URL** - Set `api-server` option to point to self-hosted server
-2. **Authentication** - Use existing login system or add custom auth
-3. **API Compatibility** - Ensure API endpoints match RustDesk's expected format
+1. **Configure API Server URL** - Set `api-server` option (Settings → ID/Relay Server) to your API server base URL.
+2. **Authentication** - MultiDesk calls `POST /api/login`, `POST /api/currentUser`, and `GET /api/login-options`; the server must implement these.
+3. **API Compatibility** - Address book endpoints must match the formats below (same as RustDesk client).
 
 ### Required API Response Formats
 
@@ -240,9 +279,16 @@ volumes:
 
 ## Next Steps
 
-1. Choose implementation option (Python recommended for quick start)
-2. Create API server with database schema
-3. Implement authentication and permission system
-4. Create admin interface for managing users and permissions
-5. Test integration with MultiDesk client
-6. Deploy and configure
+**If using an existing RustDesk API server (recommended):**
+
+1. Deploy [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) (Docker or binary; see its README).
+2. Optionally pair with [lejianwen/rustdesk-server](https://github.com/lejianwen/rustdesk-server) for ID/relay if self-hosting full stack.
+3. In MultiDesk: Settings → ID/Relay Server → set **API Server** to your rustdesk-api URL.
+4. Log in with a user created in the API server (default admin password is printed on first run; change it).
+
+**If building a custom server instead:**
+
+1. Choose implementation option (Python/Rust/Node as in Implementation Options).
+2. Implement the API contract above (auth: `/api/login`, `/api/currentUser`; address book: `/api/ab/*` as used by MultiDesk).
+3. Use the database schema and security considerations in this document.
+4. Test with MultiDesk client and deploy.
