@@ -55,6 +55,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   final RxBool _block = false.obs;
 
   final GlobalKey _childKey = GlobalKey();
+  RelativeRect _idMenuPosition = RelativeRect.fill;
 
   @override
   Widget build(BuildContext context) {
@@ -255,28 +256,104 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     );
   }
 
+  void _showIdDropdownMenu(BuildContext context) async {
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    final model = gFFI.serverModel;
+    final showNetwork = !bind.isDisableSettings() &&
+        DesktopSettingPage.tabKeys.contains(SettingsTabKey.network);
+    final entries = <PopupMenuEntry<String>>[
+      PopupMenuItem<String>(
+        value: 'copy_id',
+        height: 36,
+        child: Row(
+          children: [
+            Icon(Icons.copy_outlined, size: 20, color: textColor),
+            const SizedBox(width: 12),
+            Text(translate('Copy ID')),
+          ],
+        ),
+      ),
+      const PopupMenuDivider(height: 8),
+      if (showNetwork)
+        PopupMenuItem<String>(
+          value: 'id_relay',
+          height: 36,
+          child: Row(
+            children: [
+              Icon(Icons.dns_outlined, size: 20, color: textColor),
+              const SizedBox(width: 12),
+              Text(translate('ID/Relay Server')),
+            ],
+          ),
+        ),
+      if (showNetwork) const PopupMenuDivider(height: 8),
+      PopupMenuItem<String>(
+        value: 'settings',
+        height: 36,
+        child: Row(
+          children: [
+            Icon(Icons.settings_outlined, size: 20, color: textColor),
+            const SizedBox(width: 12),
+            Text(translate('Settings')),
+          ],
+        ),
+      ),
+    ];
+    final value = await showMenu<String>(
+      context: context,
+      position: _idMenuPosition,
+      items: entries,
+    );
+    if (!context.mounted) return;
+    switch (value) {
+      case 'copy_id':
+        Clipboard.setData(ClipboardData(text: model.serverId.text));
+        showToast(translate("Copied"));
+        break;
+      case 'id_relay':
+        DesktopTabPage.onAddSetting(initialPage: SettingsTabKey.network);
+        break;
+      case 'settings':
+        DesktopTabPage.onAddSetting();
+        break;
+    }
+  }
+
   Widget buildPopupMenu(BuildContext context) {
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
     RxBool hover = false.obs;
-    return InkWell(
-      onTap: DesktopTabPage.onAddSetting,
+
+    return GestureDetector(
+      onTapDown: (details) {
+        final pos = details.globalPosition;
+        _idMenuPosition = RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy);
+      },
+      onTap: () => _showIdDropdownMenu(context),
+      onSecondaryTapDown: (details) {
+        final pos = details.globalPosition;
+        _idMenuPosition = RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy);
+      },
+      onSecondaryTap: () => _showIdDropdownMenu(context),
       child: Tooltip(
         message: translate('Settings'),
-        child: Obx(
-          () => CircleAvatar(
-            radius: 15,
-            backgroundColor: hover.value
-                ? Theme.of(context).scaffoldBackgroundColor
-                : Theme.of(context).colorScheme.background,
-            child: Icon(
-              Icons.more_vert_outlined,
-              size: 20,
-              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+        child: MouseRegion(
+          onEnter: (_) => hover.value = true,
+          onExit: (_) => hover.value = false,
+          child: Obx(
+            () => CircleAvatar(
+              radius: 15,
+              backgroundColor: hover.value
+                  ? Theme.of(context).scaffoldBackgroundColor
+                  : Theme.of(context).colorScheme.background,
+              child: Icon(
+                Icons.more_vert_outlined,
+                size: 20,
+                color: hover.value ? textColor : textColor?.withOpacity(0.5),
+              ),
             ),
           ),
         ),
       ),
-      onHover: (value) => hover.value = value,
     );
   }
 
