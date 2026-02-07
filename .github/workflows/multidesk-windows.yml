@@ -24,6 +24,7 @@ jobs:
         with:
           toolchain: "1.75"
           targets: x86_64-unknown-linux-gnu
+          components: rustfmt
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
