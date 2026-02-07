@@ -9,6 +9,7 @@ on:
 env:
   FLUTTER_VERSION: "3.24.5"
   FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
 
 jobs:
   # Generate Flutter-Rust bridge (runs on Linux; artifact used by build-windows-flutter).
@@ -165,11 +166,18 @@ jobs:
             target/x86_64-pc-windows-msvc/release/multidesk.exe
             target/x86_64-pc-windows-msvc/release/sciter.dll
 
-  # Flutter UI build — same look as official RustDesk Windows build.
+  # Flutter UI build — same look as official RustDesk Windows build (with hwcodec).
   build-windows-flutter:
     runs-on: windows-latest
     needs: generate-bridge
     steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -187,21 +195,22 @@ jobs:
           toolchain: stable
           targets: x86_64-pc-windows-msvc
 
-      - name: Setup vcpkg
-        shell: pwsh
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        shell: bash
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
         run: |
-          if (-not $Env:VCPKG_ROOT) {
-            $Env:VCPKG_ROOT = Join-Path $Env:USERPROFILE "vcpkg"
-          }
-          if (-not (Test-Path $Env:VCPKG_ROOT)) {
-            git clone https://github.com/microsoft/vcpkg $Env:VCPKG_ROOT
-          }
-          Set-Location $Env:VCPKG_ROOT
-          if (-not (Test-Path ".\vcpkg.exe")) {
-            .\bootstrap-vcpkg.bat
-          }
-          .\vcpkg.exe install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-          Add-Content -Path $Env:GITHUB_ENV -Value "VCPKG_ROOT=$Env:VCPKG_ROOT"
+          if ! "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" 2>/dev/null | while read -r f; do echo "=== $f ==="; cat "$f" 2>/dev/null | tail -100; done
+            exit 1
+          fi
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -213,11 +222,10 @@ jobs:
       - name: Flutter precache Windows
         run: flutter precache --windows
 
-      - name: Build Flutter Windows (same UI as RustDesk)
+      - name: Build Flutter Windows (same UI as RustDesk, with hwcodec)
         shell: pwsh
         run: |
-          # Build without hwcodec to avoid ffmpeg/vcpkg setup (software codec only)
-          python build.py --flutter --skip-portable-pack
+          python build.py --flutter --hwcodec --skip-portable-pack
           if (-not (Test-Path "flutter\build\windows\x64\runner\Release")) {
             Write-Error "Flutter build output not found"
             exit 1
