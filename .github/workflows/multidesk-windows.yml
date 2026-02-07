@@ -216,7 +216,8 @@ jobs:
       - name: Build Flutter Windows (same UI as RustDesk)
         shell: pwsh
         run: |
-          python build.py --flutter --hwcodec --skip-portable-pack
+          # Build without hwcodec to avoid ffmpeg/vcpkg setup (software codec only)
+          python build.py --flutter --skip-portable-pack
           if (-not (Test-Path "flutter\build\windows\x64\runner\Release")) {
             Write-Error "Flutter build output not found"
             exit 1
