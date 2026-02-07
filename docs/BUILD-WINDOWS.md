@@ -1,16 +1,15 @@
 # Windows build: Sciter vs Flutter
 
 Official **RustDesk** Windows 64-bit builds use the **Flutter** UI (modern interface in `flutter/`).  
-MultiDesk’s Windows CI builds **both** UIs; the difference in look comes from **which UI stack** is built, not from an old codebase.
+MultiDesk’s Windows CI builds **both** UIs.
 
-| Artifact | UI | Contents |
-|----------|----|----------|
-| **multidesk-windows** | Sciter (legacy) | `multidesk.exe` + `sciter.dll` — older look |
-| **multidesk-windows-flutter** | Flutter | Same look as current RustDesk — `rustdesk.exe` + Flutter runtime DLLs |
+| Artifact | UI | Contents | DLLs / footprint |
+|----------|----|----------|------------------|
+| **multidesk-windows** | Sciter (legacy) | `multidesk.exe` + `sciter.dll` | **Minimal** — only 2 files. Use this if you want the smallest deployment. |
+| **multidesk-windows-flutter** | Flutter | `multidesk.exe` + Flutter engine DLLs | Same as RustDesk — many DLLs (flutter_windows.dll, VC++ runtime, etc.). Required for the modern UI. |
 
-- **CI:** On push to `master`, the `Build MultiDesk (Windows)` workflow runs:
-  - **build-windows** → Sciter build → artifact `multidesk-windows`
-  - **build-windows-flutter** → Flutter build (after bridge generation) → artifact `multidesk-windows-flutter`
-- **Local Flutter build:**  
-  Generate the bridge, then `python build.py --flutter --hwcodec --skip-portable-pack`.  
-  See RustDesk’s [flutter-build.yml](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml) for full CI steps (custom engine, vcpkg, etc.).
+- **Branding and ID/relay:** The Flutter artifact is built as `rustdesk.exe` then **renamed to `multidesk.exe`** in CI. When the executable name contains `multidesk`, the app applies MultiDesk branding and default ID/relay/API server (see `src/common.rs`).
+- **CI:** On push to `master`:
+  - **build-windows** → Sciter → artifact `multidesk-windows` (2 files).
+  - **build-windows-flutter** → Flutter + hwcodec → artifact `multidesk-windows-flutter` (multidesk.exe + DLLs).
+- **Fewer DLLs:** To avoid the Flutter runtime DLL set, use the **Sciter** artifact (`multidesk-windows`). For the modern UI you need the Flutter build and its DLLs; RustDesk ships the same way.

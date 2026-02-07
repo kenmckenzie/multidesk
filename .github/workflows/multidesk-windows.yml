@@ -231,6 +231,14 @@ jobs:
             exit 1
           }
 
+      - name: Rename to multidesk.exe for branding and default ID/relay
+        shell: pwsh
+        run: |
+          $release = "flutter\build\windows\x64\runner\Release"
+          if (Test-Path "$release\rustdesk.exe") {
+            Rename-Item -Path "$release\rustdesk.exe" -NewName "multidesk.exe"
+          }
+
       - name: Upload Flutter Windows artifact
         uses: actions/upload-artifact@v4
         with:
