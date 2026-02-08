@@ -258,8 +258,33 @@ jobs:
             Rename-Item -Path "$release\rustdesk.exe" -NewName "multidesk.exe"
           }
 
-      - name: Upload Flutter Windows artifact
+      - name: Get version for installer name
+        id: version
+        run: |
+          $v = (Select-String -Path "Cargo.toml" -Pattern '^version\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build self-extracting installer (single exe with DLLs inside, like official RustDesk)
+        shell: pwsh
+        run: |
+          pip install -r libs/portable/requirements.txt
+          python libs/portable/generate.py -f flutter/build/windows/x64/runner/Release -o libs/portable -e flutter/build/windows/x64/runner/Release/multidesk.exe
+          Push-Location libs/portable
+          cargo build --release
+          Pop-Location
+          New-Item -ItemType Directory -Force -Path SignOutput | Out-Null
+          $ver = "${{ steps.version.outputs.version }}"
+          Copy-Item "libs/portable/target/release/rustdesk-portable-packer.exe" "SignOutput/multidesk-$ver-install.exe"
+          Write-Host "Built SignOutput/multidesk-$ver-install.exe (single exe with all DLLs embedded)"
+
+      - name: Upload Flutter Windows artifact (unzipped Release folder)
         uses: actions/upload-artifact@v4
         with:
           name: multidesk-windows-flutter
           path: flutter/build/windows/x64/runner/Release/
+
+      - name: Upload self-extracting installer (single exe, like official installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: multidesk-windows-installer
+          path: SignOutput/
