@@ -13,3 +13,4 @@ MultiDesk’s Windows CI builds **both** UIs.
   - **build-windows** → Sciter → artifact `multidesk-windows` (2 files).
   - **build-windows-flutter** → Flutter + hwcodec → artifact `multidesk-windows-flutter` (multidesk.exe + DLLs).
 - **Fewer DLLs:** To avoid the Flutter runtime DLL set, use the **Sciter** artifact (`multidesk-windows`). For the modern UI you need the Flutter build and its DLLs; RustDesk ships the same way.
+- **`uni_links_desktop_plugin.dll` not found:** The Flutter build and CI now ensure this plugin DLL is copied into the Release folder (and thus into the artifact or installer). If you still see the error, ensure you use the latest build; the DLL must sit next to `multidesk.exe`.

@@ -1,0 +1,5 @@
+# Replace with your domain (must point to this server for Let's Encrypt).
+# Caddy will obtain and renew HTTPS certificates automatically.
+epyc1admin.multisaas.co.za {
+	reverse_proxy host.docker.internal:21114
+}

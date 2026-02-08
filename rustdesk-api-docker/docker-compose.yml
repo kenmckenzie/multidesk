@@ -1,18 +1,34 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - rustdesk-api
+
   rustdesk-api:
     image: lejianwen/rustdesk-api:latest
     container_name: rustdesk-api
-    network_mode: "host"
+    network_mode: host
     environment:
       - TZ=UTC
       - RUSTDESK_API_LANG=en
 
-      # API URL as seen by clients
-      - RUSTDESK_API_RUSTDESK_API_SERVER=http://epyc1admin.multisaas.co.za:21114
+      # Public URL clients use (HTTPS via Caddy)
+      - RUSTDESK_API_RUSTDESK_API_SERVER=https://epyc1admin.multisaas.co.za
 
-      # ID + Relay (on the host network)
-      - RUSTDESK_API_RUSTDESK_ID_SERVER=localhost:21116
-      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=localhost:21117
+      # ID + Relay on localhost (host network = same host as hbbs/hbbr)
+      - RUSTDESK_API_RUSTDESK_ID_SERVER=127.0.0.1:21116
+      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=127.0.0.1:21117
 
       # Must match hbbs/hbbr key
       - RUSTDESK_API_RUSTDESK_KEY=P9AGH4SDGX2F6s3vu+VXIqfxBIYCplc1HrNGssqwQN8=
@@ -22,4 +38,5 @@ services:
 
 volumes:
   rustdesk-api-data:
-
+  caddy_data:
+  caddy_config:

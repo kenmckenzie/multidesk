@@ -231,6 +231,25 @@ jobs:
             exit 1
           }
 
+      - name: Ensure plugin DLLs (e.g. uni_links_desktop_plugin.dll) are in Release
+        shell: pwsh
+        run: |
+          $release = "flutter\build\windows\x64\runner\Release"
+          $pluginsRoot = "flutter\build\windows\x64\plugins"
+          $requiredDlls = @("uni_links_desktop_plugin.dll")
+          foreach ($dll in $requiredDlls) {
+            $dest = Join-Path $release $dll
+            if (-not (Test-Path $dest)) {
+              $found = Get-ChildItem -Path $pluginsRoot -Filter $dll -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) {
+                Copy-Item -Path $found.FullName -Destination $dest -Force
+                Write-Host "Copied $dll to Release from $($found.FullName)"
+              } else {
+                Write-Warning "Required DLL not found: $dll (app may fail at runtime)"
+              }
+            }
+          }
+
       - name: Rename to multidesk.exe for branding and default ID/relay
         shell: pwsh
         run: |

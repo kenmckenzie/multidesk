@@ -431,6 +431,23 @@ def build_flutter_arch_manjaro(version, features):
     system2('HBB=`pwd`/.. FLUTTER=1 makepkg -f')
 
 
+def _ensure_plugin_dlls_in_release(release_dir, plugins_root, dll_names):
+    """Copy required plugin DLLs into Release if missing (e.g. uni_links_desktop_plugin.dll)."""
+    release = Path(release_dir)
+    plugins = Path(plugins_root)
+    for name in dll_names:
+        dest = release / name
+        if dest.exists():
+            continue
+        for path in plugins.rglob(name):
+            if path.is_file():
+                shutil.copy2(path, dest)
+                print(f"Copied {name} to Release from {path}")
+                break
+        else:
+            print(f"Warning: {name} not found in build (app may fail at runtime)")
+
+
 def build_flutter_windows(version, features, skip_portable_pack):
     if not skip_cargo:
         system2(f'cargo build --features {features} --lib --release')
@@ -442,6 +459,14 @@ def build_flutter_windows(version, features, skip_portable_pack):
     os.chdir('..')
     shutil.copy2('target/release/deps/dylib_virtual_display.dll',
                  flutter_build_dir_2)
+    # Ensure plugin DLLs (e.g. uni_links_desktop_plugin.dll) are present; Flutter sometimes omits them
+    plugins_root = Path(flutter_build_dir_2).parent.parent / "plugins"
+    if plugins_root.exists():
+        _ensure_plugin_dlls_in_release(
+            flutter_build_dir_2,
+            str(plugins_root),
+            ["uni_links_desktop_plugin.dll"],
+        )
     if skip_portable_pack:
         return
     os.chdir('libs/portable')
