@@ -274,7 +274,7 @@ jobs:
           Pop-Location
           New-Item -ItemType Directory -Force -Path SignOutput | Out-Null
           $ver = "${{ steps.version.outputs.version }}"
-          Copy-Item "libs/portable/target/release/rustdesk-portable-packer.exe" "SignOutput/multidesk-$ver-install.exe"
+          Copy-Item "target/release/rustdesk-portable-packer.exe" "SignOutput/multidesk-$ver-install.exe"
           Write-Host "Built SignOutput/multidesk-$ver-install.exe (single exe with all DLLs embedded)"
 
       - name: Upload Flutter Windows artifact (unzipped Release folder)
