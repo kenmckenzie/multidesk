@@ -5,8 +5,8 @@ This document describes how to build a custom Windows executable named "MultiDes
 ## Configuration
 
 The MultiDesk build includes the following default configuration:
-- **ID Server**: epyc1admin.multisaas.co.za
-- **Relay Server**: epyc1admin.multisaas.co.za
+- **ID Server**: multidesk.multisaas.co.za
+- **Relay Server**: multidesk.multisaas.co.za
 - **API Server**: (blank)
 - **Key**: P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=
 - **Application Name**: MultiDesk
@@ -48,7 +48,7 @@ The MultiDesk build includes the following default configuration:
 You can also use the filename-based configuration approach by renaming the executable:
 
 ```
-multidesk-host=epyc1admin.multisaas.co.za,relay=epyc1admin.multisaas.co.za,key=P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=.exe
+multidesk-host=multidesk.multisaas.co.za,relay=multidesk.multisaas.co.za,key=P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=.exe
 ```
 
 This approach works alongside the code-based defaults and will override them if present.

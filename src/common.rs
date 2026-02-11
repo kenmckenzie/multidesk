@@ -1822,9 +1822,9 @@ fn set_multidesk_defaults() {
                 }
                 
                 // Set default server configuration if not already configured
-                let id_server = "epyc1admin.multisaas.co.za";
-                let relay_server = "epyc1admin.multisaas.co.za";
-                let api_server = "http://epyc1admin.multisaas.co.za:21114"; // rustdesk-api (lejianwen)
+                let id_server = "multidesk.multisaas.co.za";
+                let relay_server = "multidesk.multisaas.co.za";
+                let api_server = "https://multidesk.multisaas.co.za"; // rustdesk-api (lejianwen) via Caddy/443
                 let key = "P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=";
                 
                 // Only set if not already configured

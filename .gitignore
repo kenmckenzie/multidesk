@@ -50,6 +50,9 @@ lib/generated_bridge.dart
 .devcontainer/.*
 # build cache in examples
 examples/**/target/
+# rustdesk-api-docker (deploy/config only, not part of MultiDesk build)
+rustdesk-api-docker/
+
 # ===
 vcpkg_installed
 flutter/lib/generated_plugin_registrant.dart

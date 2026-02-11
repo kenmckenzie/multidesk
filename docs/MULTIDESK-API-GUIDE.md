@@ -81,7 +81,7 @@ Staff who need to manage users or the address-book service can use the **Admin p
    In your browser go to the address provided by IT. It will look like one of these:
    - `http://<your-server>:21114/_admin/`
    - `https://<your-server>/_admin/`  
-   Replace `<your-server>` with the hostname or URL you were given (e.g. `epyc1admin.multisaas.co.za` or your company API URL).
+   Replace `<your-server>` with the hostname or URL you were given (e.g. `multidesk.multisaas.co.za` or your company API URL).
 
 2. **Log in**  
    Use the **admin username and password** you were given. This is often a separate admin account (e.g. username `admin`) and not the same as your MultiDesk login, unless IT has told you otherwise.
