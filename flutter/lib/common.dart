@@ -3671,7 +3671,7 @@ Widget loadPowered(BuildContext context) {
   ).marginOnly(top: 6);
 }
 
-// max 300 x 60
+// Logo display size (smaller than previous 300x60)
 Widget loadLogo() {
   return FutureBuilder<ByteData>(
       future: rootBundle.load('assets/logo.png'),
@@ -3685,7 +3685,7 @@ Widget loadLogo() {
             },
           );
           return Container(
-            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
+            constraints: const BoxConstraints(maxWidth: 160, maxHeight: 36),
             child: image,
           ).marginOnly(left: 12, right: 12, top: 12);
         }

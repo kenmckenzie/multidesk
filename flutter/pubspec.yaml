@@ -124,7 +124,8 @@ dependency_overrides:
   intl: ^0.19.0
   flutter_plugin_android_lifecycle: 2.0.17
 
-# rerun: flutter pub run flutter_launcher_icons
+# After changing res/icon.png: run scripts/update_icons_from_png.py (Windows/tray ICO),
+# then: cd flutter && dart run flutter_launcher_icons (all platforms + web favicon)
 flutter_icons:
   image_path: "../res/icon.png"
   remove_alpha_ios: true
