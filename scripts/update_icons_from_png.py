@@ -17,11 +17,27 @@ SRC = REPO_ROOT / "res" / "icon.png"
 SIZES_ICO = (16, 24, 32, 48, 64, 256)
 
 
+def _make_bg_transparent(img: Image.Image, threshold: int = 30) -> Image.Image:
+    """Replace black/near-black background with transparency. Preserves logo color."""
+    img = img.convert("RGBA")
+    data = img.getdata()
+    out = []
+    for item in data:
+        r, g, b, a = item
+        if r <= threshold and g <= threshold and b <= threshold:
+            out.append((r, g, b, 0))
+        else:
+            out.append(item)
+    img.putdata(out)
+    return img
+
+
 def main():
     if not SRC.exists():
         print(f"Source not found: {SRC}")
         return 1
     img = Image.open(SRC).convert("RGBA")
+    img = _make_bg_transparent(img)
     # Build multi-size ico
     icons = []
     for size in SIZES_ICO:
@@ -41,6 +57,12 @@ def main():
     t32 = img.resize((32, 32), Image.Resampling.LANCZOS)
     t16.save(out_tray, format="ICO", sizes=[(16, 16), (32, 32)], append_images=[t32])
     print(f"Wrote {out_tray}")
+    # In-app icon: transparent PNG for loadIcon() (no black background)
+    out_app_icon = REPO_ROOT / "flutter" / "assets" / "icon.png"
+    out_app_icon.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_app_icon)
+    print(f"Wrote {out_app_icon}")
+
     # Favicon 32x32 for web (if web dir exists / not fully ignored in build)
     web_dir = REPO_ROOT / "flutter" / "web"
     if web_dir.exists():
