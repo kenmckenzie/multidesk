@@ -13,7 +13,8 @@ except ImportError:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "res" / "icon.png"
-SIZES_ICO = (16, 32, 48, 256)
+# Multiple sizes so OS picks nearest (reduces blur from scaling)
+SIZES_ICO = (16, 24, 32, 48, 64, 256)
 
 
 def main():
@@ -34,10 +35,11 @@ def main():
     out_res = REPO_ROOT / "res" / "icon.ico"
     icons[0].save(out_res, format="ICO", sizes=[(s, s) for s in SIZES_ICO], append_images=icons[1:])
     print(f"Wrote {out_res}")
-    # Tray icon (small)
+    # Tray icon: include 16 and 32 so taskbar picks sharp size
     out_tray = REPO_ROOT / "res" / "tray-icon.ico"
-    small = img.resize((16, 16), Image.Resampling.LANCZOS)
-    small.save(out_tray, format="ICO", sizes=[(16, 16)])
+    t16 = img.resize((16, 16), Image.Resampling.LANCZOS)
+    t32 = img.resize((32, 32), Image.Resampling.LANCZOS)
+    t16.save(out_tray, format="ICO", sizes=[(16, 16), (32, 32)], append_images=[t32])
     print(f"Wrote {out_tray}")
     # Favicon 32x32 for web (if web dir exists / not fully ignored in build)
     web_dir = REPO_ROOT / "flutter" / "web"

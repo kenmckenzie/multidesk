@@ -3671,23 +3671,31 @@ Widget loadPowered(BuildContext context) {
   ).marginOnly(top: 6);
 }
 
-// Logo display size (smaller than previous 300x60)
+// Logo in top-left: sized to fit without clipping; high filterQuality to avoid blur
 Widget loadLogo() {
   return FutureBuilder<ByteData>(
       future: rootBundle.load('assets/logo.png'),
       builder: (BuildContext context, AsyncSnapshot<ByteData> snapshot) {
         if (snapshot.hasData) {
-          final image = Image.asset(
-            'assets/logo.png',
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, error, stackTrace) {
-              return Container();
-            },
+          const maxW = 180.0;
+          const maxH = 44.0;
+          return Padding(
+            padding: const EdgeInsets.only(left: 12, right: 12, top: 12),
+            child: SizedBox(
+              width: maxW,
+              height: maxH,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                clipBehavior: Clip.none,
+                child: Image.asset(
+                  'assets/logo.png',
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (ctx, error, stackTrace) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
           );
-          return Container(
-            constraints: const BoxConstraints(maxWidth: 160, maxHeight: 36),
-            child: image,
-          ).marginOnly(left: 12, right: 12, top: 12);
         }
         return const Offstage();
       });
@@ -3697,6 +3705,7 @@ Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',
       width: size,
       height: size,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (ctx, error, stackTrace) => SvgPicture.asset(
             'assets/icon.svg',
             width: size,
