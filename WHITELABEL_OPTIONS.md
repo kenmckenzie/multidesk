@@ -210,6 +210,10 @@ Already implemented in MultiDesk:
 4. **Customize window title** in `src/ui.rs` line 87
 5. **Modify About dialog** in `src/ui/index.tis` line 587
 
+## Syncing with RustDesk Upstream
+
+To pull in upstream fixes and features while keeping MultiDesk branding, see **[docs/SYNC_UPSTREAM.md](docs/SYNC_UPSTREAM.md)**. Use `./scripts/sync_upstream.sh` for an automated merge that preserves whitelabel files listed in `scripts/whitelabel-files.txt`.
+
 ## Resources
 
 - RustDesk Customization Guide: https://rustdesk.com/docs/en/self-host/client-configuration/

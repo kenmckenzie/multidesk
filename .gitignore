@@ -16,6 +16,14 @@ cert.pfx
 *png
 *svg
 *jpg
+# Whitelabel assets (tracked so they survive upstream sync)
+!flutter/assets/logo.png
+!flutter/assets/icon.png
+!res/icon.png
+!res/mac-icon.png
+!res/icon.ico
+!res/tray-icon.ico
+!flutter/windows/runner/resources/app_icon.ico
 sciter.dll
 **pdb
 src/bridge_generated.rs
