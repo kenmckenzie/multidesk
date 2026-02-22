@@ -13,8 +13,8 @@ except ImportError:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "res" / "icon.png"
-# Multiple sizes so OS picks nearest (reduces blur from scaling)
-SIZES_ICO = (16, 24, 32, 48, 64, 256)
+# Multiple sizes so OS picks nearest (reduces blur from scaling); include 128 for desktop/taskbar
+SIZES_ICO = (16, 24, 32, 48, 64, 128, 256)
 
 
 def _make_bg_transparent(img: Image.Image, threshold: int = 30) -> Image.Image:
