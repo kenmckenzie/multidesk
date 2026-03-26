@@ -52,6 +52,7 @@ use crate::keyboard;
 use crate::{client::Data, client::Interface};
 
 const CHANGE_RESOLUTION_VALID_TIMEOUT_SECS: u64 = 15;
+const ENABLE_AUTHENTICATED_SESSION_CONNECT_ENV: &str = "MULTIDESK_ENABLE_SESSION_ACCESS_TOKEN";
 
 #[derive(Clone, Default)]
 pub struct Session<T: InvokeUiSession> {
@@ -1917,6 +1918,34 @@ impl<T: InvokeUiSession> Session<T> {
     }
 }
 
+fn use_authenticated_session_connect() -> bool {
+    std::env::var(ENABLE_AUTHENTICATED_SESSION_CONNECT_ENV)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn get_session_access_token() -> String {
+    let token = LocalConfig::get_option("access_token");
+    if token.is_empty() || use_authenticated_session_connect() {
+        return token;
+    }
+
+    // rustdesk-api + stock hbbs/hbbr times out during the logged-in secure_tcp
+    // rendezvous handshake. Keep account features working, but do not inject the
+    // API access token into session connects unless an operator explicitly opts
+    // back into upstream behavior for testing or after a server-side fix.
+    log::warn!(
+        "Ignoring stored access_token for session connect. Set {}=1 to restore upstream authenticated session behavior.",
+        ENABLE_AUTHENTICATED_SESSION_CONNECT_ENV,
+    );
+    String::new()
+}
+
 #[tokio::main(flavor = "current_thread")]
 pub async fn io_loop<T: InvokeUiSession>(handler: Session<T>, round: u32) {
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -1924,7 +1953,7 @@ pub async fn io_loop<T: InvokeUiSession>(handler: Session<T>, round: u32) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let (sender, mut receiver) = mpsc::unbounded_channel::<Data>();
     *handler.sender.write().unwrap() = Some(sender.clone());
-    let token = LocalConfig::get_option("access_token");
+    let token = get_session_access_token();
     let key = crate::get_key(false).await;
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if handler.is_port_forward() {
