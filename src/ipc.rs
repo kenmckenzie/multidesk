@@ -1539,7 +1539,10 @@ const MULTIDESK_DEFAULT_PERMANENT_PASSWORD: &str = "@Cwl1234";
 fn is_multidesk_executable() -> bool {
     std::env::current_exe()
         .ok()
-        .and_then(|path| path.file_stem().map(|stem| stem.to_string_lossy().to_lowercase()))
+        .and_then(|path| {
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().to_lowercase())
+        })
         .map_or(false, |name| name.contains("multidesk"))
 }
 
