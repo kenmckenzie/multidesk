@@ -36,6 +36,8 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   int _nextTerminalId = 1;
   // Lightweight idempotency guard for async close operations
   final Set<String> _closingTabs = {};
+  // When true, all session cleanup should persist (window-level close in progress)
+  bool _windowClosing = false;
 
   _TerminalTabPageState(Map<String, dynamic> params) {
     Get.put(DesktopTabController(tabType: DesktopTabType.terminal));
@@ -44,6 +46,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
           .setTitle(getWindowNameWithId(id));
     };
     tabController.onRemoved = (_, id) => onRemoveId(id);
+    tabController.onCloseWindow = _closeWindowFromConnection;
     final terminalId = params['terminalId'] ?? _nextTerminalId++;
     tabController.add(_createTerminalTab(
       peerId: params['id'],
@@ -139,8 +142,11 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   /// UI tabs are removed immediately; session cleanup runs in parallel with a
   /// bounded timeout so window close is not blocked indefinitely.
   Future<void> _closeAllTabs() async {
+    _windowClosing = true;
     final tabKeys = tabController.state.value.tabs.map((t) => t.key).toList();
     // Remove all UI tabs immediately (same instant behavior as the old tabController.clear())
+    // Keep the cleanup target lookup below synchronous before its first await:
+    // it relies on the current frame still retaining each TerminalPage's FFI/model.
     tabController.clear();
     // Run session cleanup in parallel with bounded timeout (closeTerminal() has internal 3s timeout).
     // Skip tabs already being closed by a concurrent _closeTab() to avoid duplicate FFI calls.
@@ -171,8 +177,17 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   /// - `true` (window close): persist all sessions, don't close any.
   /// - `false` (tab close): only persist the last session for the peer,
   ///   close others so only the most recent disconnected session survives.
+  ///
+  /// Note: if [_windowClosing] is true, persistAll is forced to true so that
+  /// in-flight _closeTab() calls don't accidentally close sessions that the
+  /// window-close flow intends to preserve.
   Future<void> _closeTerminalSessionIfNeeded(String tabKey,
       {bool persistAll = false, int? peerTabCount}) async {
+    // If window close is in progress, override to persist all sessions
+    // even if this call originated from an individual tab close.
+    if (_windowClosing) {
+      persistAll = true;
+    }
     final parsed = _parseTabKey(tabKey);
     if (parsed == null) return;
     final (peerId, terminalId) = parsed;
@@ -356,8 +371,34 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     final persistentSessions =
         args['persistent_sessions'] as List<dynamic>? ?? [];
     final sortedSessions = persistentSessions.whereType<int>().toList()..sort();
+    var peerId = args['peer_id'] as String? ?? '';
+    if (peerId.isEmpty) {
+      if (tabController.state.value.tabs.isEmpty ||
+          tabController.state.value.selected >=
+              tabController.state.value.tabs.length) {
+        debugPrint('[TerminalTabPage] Skip restore: no selected tab');
+        return;
+      }
+      final currentTab = tabController.state.value.selectedTabInfo;
+      final parsed = _parseTabKey(currentTab.key);
+      if (parsed == null) return;
+      peerId = parsed.$1;
+    }
+    final existingTerminalIds = tabController.state.value.tabs
+        .map((tab) => _parseTabKey(tab.key))
+        .where((parsed) => parsed != null && parsed.$1 == peerId)
+        .map((parsed) => parsed!.$2)
+        .toSet();
+    if (existingTerminalIds.isEmpty) {
+      debugPrint(
+          '[TerminalTabPage] Skip restore: no seed tab for peer $peerId');
+      return;
+    }
     for (final terminalId in sortedSessions) {
-      _addNewTerminalForCurrentPeer(terminalId: terminalId);
+      if (!existingTerminalIds.add(terminalId)) {
+        continue;
+      }
+      _addNewTerminal(peerId, terminalId: terminalId);
       // A delay is required to ensure the UI has sufficient time to update
       // before adding the next terminal. Without this delay, `_TerminalPageState::dispose()`
       // may be called prematurely while the tab widget is still in the tab controller.
@@ -532,6 +573,11 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     if (tabController.state.value.tabs.isEmpty) {
       WindowController.fromWindowId(windowId()).close();
     }
+  }
+
+  Future<void> _closeWindowFromConnection() async {
+    await _closeAllTabs();
+    await WindowController.fromWindowId(windowId()).close();
   }
 
   int windowId() {
