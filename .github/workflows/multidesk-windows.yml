@@ -59,7 +59,7 @@ jobs:
             ./flutter/ios/Runner/bridge_generated.h
 
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -168,7 +168,7 @@ jobs:
 
   # Flutter UI build — same look as official RustDesk Windows build (with hwcodec).
   build-windows-flutter:
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: generate-bridge
     steps:
       - name: Export GitHub Actions cache environment variables
@@ -221,6 +221,24 @@ jobs:
 
       - name: Flutter precache Windows
         run: flutter precache --windows
+
+      # Default Flutter 3.24.5 engine targets VS2019; RustDesk's custom engine works on windows-2022.
+      - name: Replace engine with rustdesk custom flutter engine
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release -Force
+          $engineDir = "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/"
+          New-Item -ItemType Directory -Force -Path $engineDir | Out-Null
+          Copy-Item -Path "windows-x64-release/*" -Destination $engineDir -Recurse -Force
+
+      - name: Patch flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$(dirname "$(dirname "$(which flutter)")")"
+          cd "$(dirname "$(dirname "$(which flutter)")")"
+          [[ "3.24.5" == "${{ env.FLUTTER_VERSION }}" ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
       - name: Build Flutter Windows (same UI as RustDesk, with hwcodec)
         shell: pwsh

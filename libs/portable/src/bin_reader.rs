@@ -127,7 +127,7 @@ impl BinaryReader {
 
         let exe_path = prefix.join(&self.exe);
         if exe_path.exists() {
-            if let Ok(f) = File::open(exe_path) {
+            if let Ok(f) = fs::File::open(exe_path) {
                 if let Ok(meta) = f.metadata() {
                     let mut permissions = meta.permissions();
                     permissions.set_mode(0o755);
