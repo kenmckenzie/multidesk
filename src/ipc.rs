@@ -481,6 +481,9 @@ pub enum Data {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn start(postfix: &str) -> ResultType<()> {
+    if postfix.is_empty() {
+        ensure_multidesk_default_permanent_password_on_daemon();
+    }
     let mut incoming = new_listener(postfix).await?;
     loop {
         if let Some(result) = incoming.next().await {
@@ -1534,23 +1537,27 @@ pub fn update_temporary_password() -> ResultType<()> {
     set_config("temporary-password", "".to_owned())
 }
 
-const MULTIDESK_DEFAULT_PERMANENT_PASSWORD: &str = "@Cwl1234";
-
-fn is_multidesk_executable() -> bool {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| {
-            path.file_stem()
-                .map(|stem| stem.to_string_lossy().to_lowercase())
-        })
-        .map_or(false, |name| name.contains("multidesk"))
+fn ensure_multidesk_default_permanent_password_on_daemon() {
+    if !crate::common::is_multidesk_executable() || Config::has_permanent_password() {
+        return;
+    }
+    if Config::set_permanent_password(crate::common::MULTIDESK_DEFAULT_PERMANENT_PASSWORD) {
+        log::info!("Set MultiDesk default unattended access password");
+    } else {
+        log::warn!("MultiDesk default unattended access password was rejected");
+    }
 }
 
 fn seed_multidesk_default_permanent_password() -> bool {
-    if !is_multidesk_executable() {
+    if !crate::common::is_multidesk_executable() {
         return false;
     }
-    match set_permanent_password_with_ack(MULTIDESK_DEFAULT_PERMANENT_PASSWORD.to_owned()) {
+    if Config::has_permanent_password() {
+        return true;
+    }
+    match set_permanent_password_with_ack(
+        crate::common::MULTIDESK_DEFAULT_PERMANENT_PASSWORD.to_owned(),
+    ) {
         Ok(true) => {
             log::info!("Set MultiDesk default unattended access password");
             true

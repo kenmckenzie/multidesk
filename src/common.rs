@@ -2106,41 +2106,58 @@ pub fn load_custom_client() {
     set_multidesk_defaults();
 }
 
+pub const MULTIDESK_DEFAULT_PERMANENT_PASSWORD: &str = "@Cwl1234";
+
+pub fn is_multidesk_executable() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().to_lowercase())
+        })
+        .map_or(false, |name| name.contains("multidesk"))
+}
+
 fn set_multidesk_defaults() {
     use hbb_common::config::Config;
-    
-    // Check if executable name contains "multidesk" (case-insensitive)
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_name) = exe_path.file_stem() {
-            let exe_name_lower = exe_name.to_string_lossy().to_lowercase();
-            if exe_name_lower.contains("multidesk") {
-                // Set app name to MultiDesk if not already set
-                let current_app_name = config::APP_NAME.read().unwrap().clone();
-                if current_app_name == "RustDesk" || current_app_name.is_empty() {
-                    *config::APP_NAME.write().unwrap() = "MultiDesk".to_owned();
-                }
-                
-                // Set default server configuration if not already configured
-                let id_server = "multidesk.multisaas.co.za";
-                let relay_server = "multidesk.multisaas.co.za";
-                let api_server = "https://multidesk.multisaas.co.za"; // rustdesk-api (lejianwen) via Caddy/443
-                let key = "P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=";
-                
-                // Only set if not already configured
-                if Config::get_option("custom-rendezvous-server").is_empty() {
-                    Config::set_option("custom-rendezvous-server".to_owned(), id_server.to_owned());
-                }
-                if Config::get_option("relay-server").is_empty() {
-                    Config::set_option("relay-server".to_owned(), relay_server.to_owned());
-                }
-                if Config::get_option("api-server").is_empty() {
-                    Config::set_option("api-server".to_owned(), api_server.to_owned());
-                }
-                if Config::get_option("key").is_empty() {
-                    Config::set_option("key".to_owned(), key.to_owned());
-                }
-            }
-        }
+
+    if !is_multidesk_executable() {
+        return;
+    }
+
+    // Set app name to MultiDesk if not already set
+    let current_app_name = config::APP_NAME.read().unwrap().clone();
+    if current_app_name == "RustDesk" || current_app_name.is_empty() {
+        *config::APP_NAME.write().unwrap() = "MultiDesk".to_owned();
+    }
+
+    // Set default server configuration if not already configured
+    let id_server = "multidesk.multisaas.co.za";
+    let relay_server = "multidesk.multisaas.co.za";
+    let api_server = "https://multidesk.multisaas.co.za"; // rustdesk-api (lejianwen) via Caddy/443
+    let key = "P9AGH4SDGX2F6s3vu+VXIqfxBIYCPlc1HrNGssqwQN8=";
+
+    if Config::get_option("custom-rendezvous-server").is_empty() {
+        Config::set_option("custom-rendezvous-server".to_owned(), id_server.to_owned());
+    }
+    if Config::get_option("relay-server").is_empty() {
+        Config::set_option("relay-server".to_owned(), relay_server.to_owned());
+    }
+    if Config::get_option("api-server").is_empty() {
+        Config::set_option("api-server".to_owned(), api_server.to_owned());
+    }
+    if Config::get_option("key").is_empty() {
+        Config::set_option("key".to_owned(), key.to_owned());
+    }
+    // Unattended access: fixed permanent password, set on install when the service starts
+    if Config::get_option("verification-method").is_empty() {
+        Config::set_option(
+            "verification-method".to_owned(),
+            "use-permanent-password".to_owned(),
+        );
+    }
+    if Config::get_option("approve-mode").is_empty() {
+        Config::set_option("approve-mode".to_owned(), "password".to_owned());
     }
 }
 

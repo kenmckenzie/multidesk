@@ -1711,6 +1711,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
 {import_config}
 {after_install}
 {install_remote_printer}
+{set_default_password}
 {sleep}
     ",
         display_icon = get_custom_icon(&path, &cur_exe).unwrap_or(exe.to_string()),
@@ -1726,6 +1727,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         dels = if debug { "" } else { &dels },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         import_config = get_import_config(&exe),
+        set_default_password = get_multidesk_set_default_password_cmd(&exe),
     );
     run_cmds(cmds, debug, "install")?;
     run_after_run_cmds(silent);
@@ -3183,11 +3185,13 @@ cscript \"{tray_shortcut}\"
 copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}
 {create_service}
+{set_default_password}
 if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
     ",
         app_name = crate::get_app_name(),
         import_config = get_import_config(&exe),
         create_service = get_create_service(&exe),
+        set_default_password = get_multidesk_set_default_password_cmd(&exe),
     );
     if let Err(err) = run_cmds(cmds, false, "install") {
         Config::set_option("stop-service".into(), "Y".into());
@@ -3665,6 +3669,17 @@ oLink.Save
     .to_str()
     .unwrap_or("")
     .to_owned())
+}
+
+fn get_multidesk_set_default_password_cmd(exe: &str) -> String {
+    if !crate::common::is_multidesk_executable() {
+        return String::new();
+    }
+    format!(
+        "timeout /t 3 /nobreak >nul
+\"{exe}\" --password \"{password}\"",
+        password = crate::common::MULTIDESK_DEFAULT_PERMANENT_PASSWORD,
+    )
 }
 
 fn get_import_config(exe: &str) -> String {
