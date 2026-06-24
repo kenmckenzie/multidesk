@@ -2159,6 +2159,9 @@ fn set_multidesk_defaults() {
     if Config::get_option("approve-mode").is_empty() {
         Config::set_option("approve-mode".to_owned(), "password".to_owned());
     }
+    if Config::get_option("theme").is_empty() {
+        Config::set_option("theme".to_owned(), "dark".to_owned());
+    }
 }
 
 fn read_custom_client_advanced_settings(
