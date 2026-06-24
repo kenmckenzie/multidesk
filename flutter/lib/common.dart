@@ -170,30 +170,30 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 
   static final light = ColorThemeExtension(
     border: Color(0xFFCBD4CE),
-    border2: brandSlateGrey,
+    border2: MyTheme.brandSlateGrey,
     border3: Colors.black26,
     highlight: Color(0xFFE8EDEA),
-    drag_indicator: brandCoreInk,
+    drag_indicator: MyTheme.brandCoreInk,
     shadow: Colors.black,
     errorBannerBg: Color(0xFFFFEBEB),
-    me: brandSignalLime,
-    toastBg: brandCoreInk.withOpacity(0.85),
-    toastText: brandPureWhite,
-    divider: brandSlateGrey,
+    me: MyTheme.brandSignalLime,
+    toastBg: MyTheme.brandCoreInk.withOpacity(0.85),
+    toastText: MyTheme.brandPureWhite,
+    divider: MyTheme.brandSlateGrey,
   );
 
   static final dark = ColorThemeExtension(
     border: Color(0xFF3A4540),
-    border2: brandSoftAsh,
+    border2: MyTheme.brandSoftAsh,
     border3: Colors.white24,
     highlight: Color(0xFF1E2823),
-    drag_indicator: brandSlateGrey,
+    drag_indicator: MyTheme.brandSlateGrey,
     shadow: Colors.black,
     errorBannerBg: Color(0xFF3D1520),
-    me: brandSignalLime,
-    toastBg: brandCarbon.withOpacity(0.92),
-    toastText: brandPureWhite,
-    divider: brandSlateGrey,
+    me: MyTheme.brandSignalLime,
+    toastBg: MyTheme.brandCarbon.withOpacity(0.92),
+    toastText: MyTheme.brandPureWhite,
+    divider: MyTheme.brandSlateGrey,
   );
 
   @override
