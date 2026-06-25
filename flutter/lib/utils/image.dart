@@ -87,7 +87,27 @@ Future<ui.Image?> decodeImageFromPixels(
   codec.dispose();
   buffer.dispose();
   descriptor.dispose();
-  return frameInfo.image;
+    return frameInfo.image;
+}
+
+/// Filter quality for texture-based remote desktop rendering.
+///
+/// Adaptive/custom scaling on smaller screens needs better filtering than
+/// [FilterQuality.low] for readable text (see Flutter [FilterQuality] docs).
+FilterQuality remoteTextureFilterQuality({
+  required bool isViewOriginal,
+  required double scale,
+}) {
+  if (isViewOriginal || (scale - 1.0).abs() <= 0.001) {
+    return FilterQuality.none;
+  }
+  if (scale < 0.5) {
+    return FilterQuality.high;
+  }
+  if (scale < 1.0) {
+    return FilterQuality.medium;
+  }
+  return FilterQuality.medium;
 }
 
 class ImagePainter extends CustomPainter {

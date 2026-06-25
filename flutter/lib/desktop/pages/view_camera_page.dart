@@ -599,8 +599,10 @@ class _ImagePaintState extends State<ImagePaint> {
           height: displays[i].height * s,
           child: Obx(() => Texture(
                 textureId: textureId.value,
-                filterQuality:
-                    isViewOriginal ? FilterQuality.none : FilterQuality.low,
+                filterQuality: remoteTextureFilterQuality(
+                  isViewOriginal: isViewOriginal,
+                  scale: sizeScale,
+                ),
               )),
         ));
       }
