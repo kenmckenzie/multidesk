@@ -32,7 +32,54 @@ def _make_bg_transparent(img: Image.Image, threshold: int = 30) -> Image.Image:
     return img
 
 
+def fit_symbol_to_square(
+    img: Image.Image,
+    size: int = 512,
+    *,
+    padding: float = 0.08,
+) -> Image.Image:
+    """Scale a wide logo into a square canvas without stretching (letterbox)."""
+    img = _make_bg_transparent(img)
+    bbox = img.getbbox()
+    if bbox:
+        img = img.crop(bbox)
+    inner = int(size * (1 - 2 * padding))
+    img.thumbnail((inner, inner), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(img, ((size - img.width) // 2, (size - img.height) // 2), img)
+    return canvas
+
+
+def write_square_icon_from_symbol(symbol_path: Path, *destinations: Path, size: int = 512) -> Image.Image:
+    symbol_path = symbol_path.resolve()
+    if not symbol_path.exists():
+        raise FileNotFoundError(f"Symbol source not found: {symbol_path}")
+    icon = fit_symbol_to_square(Image.open(symbol_path), size=size)
+    for destination in destinations:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        icon.save(destination)
+    return icon
+
+
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate MultiDesk icons from res/icon.png")
+    parser.add_argument(
+        "--from-symbol",
+        type=Path,
+        help="Build square res/icon.png from a wide symbol PNG (preserves aspect ratio)",
+    )
+    args = parser.parse_args()
+
+    if args.from_symbol:
+        write_square_icon_from_symbol(
+            args.from_symbol,
+            REPO_ROOT / "res" / "icon.png",
+            REPO_ROOT / "res" / "mac-icon.png",
+        )
+        print(f"Wrote square icons from {args.from_symbol}")
+
     if not SRC.exists():
         print(f"Source not found: {SRC}")
         return 1

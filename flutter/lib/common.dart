@@ -3767,6 +3767,7 @@ Widget loadIcon(double size) {
             'assets/icon.svg',
             width: size,
             height: size,
+            fit: BoxFit.contain,
           ));
 }
 
