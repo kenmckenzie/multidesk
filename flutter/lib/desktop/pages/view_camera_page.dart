@@ -587,16 +587,18 @@ class _ImagePaintState extends State<ImagePaint> {
       return Container();
     }
     final curDisplay = ffiModel.pi.currentDisplay;
+    final isPeerLinux = ffiModel.isPeerLinux;
     for (var i = 0; i < displays.length; i++) {
       final textureId = widget.ffi.textureModel
           .getTextureId(curDisplay == kAllDisplayValue ? i : curDisplay);
       if (true) {
         // both "textureId.value != -1" and "true" seems ok
+        final sizeScale = isPeerLinux ? s / displays[i].scale : s;
         children.add(Positioned(
           left: (displays[i].x - rect.left) * s + offset.dx,
           top: (displays[i].y - rect.top) * s + offset.dy,
-          width: displays[i].width * s,
-          height: displays[i].height * s,
+          width: displays[i].width * sizeScale,
+          height: displays[i].height * sizeScale,
           child: Obx(() => Texture(
                 textureId: textureId.value,
                 filterQuality: remoteTextureFilterQuality(
