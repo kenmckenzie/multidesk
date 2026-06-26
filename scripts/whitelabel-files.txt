@@ -15,6 +15,7 @@ flutter/windows/runner/resources/app_icon.ico
 # In-app logo and icon assets
 flutter/assets/logo.png
 flutter/assets/icon.png
+flutter/assets/icon.ico
 
 # Icon build script (includes our 128px size)
 scripts/update_icons_from_png.py

@@ -20,6 +20,7 @@ cert.pfx
 # Whitelabel assets (tracked so they survive upstream sync)
 !flutter/assets/logo.png
 !flutter/assets/icon.png
+!flutter/assets/icon.ico
 !res/icon.png
 !res/mac-icon.png
 !res/icon.ico

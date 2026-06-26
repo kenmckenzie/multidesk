@@ -38,24 +38,35 @@ def main():
         return 1
     img = Image.open(SRC).convert("RGBA")
     img = _make_bg_transparent(img)
-    # Build multi-size ico
-    icons = []
-    for size in SIZES_ICO:
-        icons.append(img.resize((size, size), Image.Resampling.LANCZOS))
+    # Build multi-size ico (Pillow requires saving from the largest image first).
+    icons = [img.resize((size, size), Image.Resampling.LANCZOS) for size in SIZES_ICO]
+    ico_sizes = [(s, s) for s in SIZES_ICO]
+
+    def write_ico(path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        icons[-1].save(
+            path,
+            format="ICO",
+            sizes=ico_sizes,
+            append_images=icons[:-1],
+        )
+
     # Windows runner icon
     out_win = REPO_ROOT / "flutter" / "windows" / "runner" / "resources" / "app_icon.ico"
-    out_win.parent.mkdir(parents=True, exist_ok=True)
-    icons[0].save(out_win, format="ICO", sizes=[(s, s) for s in SIZES_ICO], append_images=icons[1:])
+    write_ico(out_win)
     print(f"Wrote {out_win}")
-    # res/icon.ico
+    # res/icon.ico + runtime copy for win32_window LoadCustomIcon()
     out_res = REPO_ROOT / "res" / "icon.ico"
-    icons[0].save(out_res, format="ICO", sizes=[(s, s) for s in SIZES_ICO], append_images=icons[1:])
+    write_ico(out_res)
     print(f"Wrote {out_res}")
+    out_flutter_ico = REPO_ROOT / "flutter" / "assets" / "icon.ico"
+    write_ico(out_flutter_ico)
+    print(f"Wrote {out_flutter_ico}")
     # Tray icon: include 16 and 32 so taskbar picks sharp size
     out_tray = REPO_ROOT / "res" / "tray-icon.ico"
     t16 = img.resize((16, 16), Image.Resampling.LANCZOS)
     t32 = img.resize((32, 32), Image.Resampling.LANCZOS)
-    t16.save(out_tray, format="ICO", sizes=[(16, 16), (32, 32)], append_images=[t32])
+    t32.save(out_tray, format="ICO", sizes=[(16, 16), (32, 32)], append_images=[t16])
     print(f"Wrote {out_tray}")
     # In-app icon: transparent PNG for loadIcon() (no black background)
     out_app_icon = REPO_ROOT / "flutter" / "assets" / "icon.png"

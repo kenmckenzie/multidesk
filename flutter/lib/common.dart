@@ -3761,6 +3761,7 @@ Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',
       width: size,
       height: size,
+      fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
       errorBuilder: (ctx, error, stackTrace) => SvgPicture.asset(
             'assets/icon.svg',
