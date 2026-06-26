@@ -3727,35 +3727,81 @@ Widget loadPowered(BuildContext context) {
   ).marginOnly(top: 6);
 }
 
-// Logo in top-left: sized to fit without clipping; high filterQuality to avoid blur
-Widget loadLogo() {
-  return FutureBuilder<ByteData>(
-      future: rootBundle.load('assets/logo.png'),
-      builder: (BuildContext context, AsyncSnapshot<ByteData> snapshot) {
-        if (snapshot.hasData) {
-          const maxW = 180.0;
-          const maxH = 44.0;
+const _kDefaultLogoAsset = 'assets/logo.png';
+const _kLightLogoAsset = 'assets/logo_light.png';
+const _kDarkLogoAsset = 'assets/logo_dark.png';
+
+List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
+  return brightness == Brightness.dark
+      ? [_kDarkLogoAsset, _kDefaultLogoAsset]
+      : [_kLightLogoAsset, _kDefaultLogoAsset];
+}
+
+Future<String?> _resolveLogoAsset(Brightness brightness) async {
+  for (final asset in _logoAssetCandidatesForBrightness(brightness)) {
+    try {
+      await rootBundle.load(asset);
+      return asset;
+    } on FlutterError {
+      continue;
+    }
+  }
+  return null;
+}
+
+class _Logo extends StatefulWidget {
+  const _Logo();
+
+  @override
+  State<_Logo> createState() => _LogoState();
+}
+
+class _LogoState extends State<_Logo> {
+  final Map<Brightness, Future<String?>> _logoFutures = {};
+
+  Future<String?> _logoFutureFor(Brightness brightness) {
+    return _logoFutures.putIfAbsent(
+      brightness,
+      () => _resolveLogoAsset(brightness),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _logoFutureFor(Theme.of(context).brightness),
+      builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
+        final asset = snapshot.data;
+        if (asset != null) {
+          // MultiDesk: size the wide wordmark to fit without clipping; high
+          // filterQuality to avoid blur. Keeps upstream light/dark logo support.
           return Padding(
             padding: const EdgeInsets.only(left: 12, right: 12, top: 12),
             child: SizedBox(
-              width: maxW,
-              height: maxH,
+              width: 180.0,
+              height: 44.0,
               child: FittedBox(
                 fit: BoxFit.contain,
                 clipBehavior: Clip.none,
                 child: Image.asset(
-                  'assets/logo.png',
+                  asset,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.medium,
-                  errorBuilder: (ctx, error, stackTrace) => const SizedBox.shrink(),
+                  errorBuilder: (ctx, error, stackTrace) =>
+                      const SizedBox.shrink(),
                 ),
               ),
             ),
           );
         }
         return const Offstage();
-      });
+      },
+    );
+  }
 }
+
+// max 300 x 60
+Widget loadLogo() => const _Logo();
 
 Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',

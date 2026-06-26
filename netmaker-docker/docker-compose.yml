@@ -1,0 +1,53 @@
+services:
+  netmaker:
+    container_name: netmaker
+    image: gravitl/netmaker:${SERVER_IMAGE_TAG}
+    env_file: ./netmaker.env
+    restart: unless-stopped
+    volumes:
+      - dnsconfig:/root/config/dnsconfig
+      - sqldata:/root/data
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "51821-51830:51821-51830/udp"
+    environment:
+      - STUN_SERVERS=stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302
+      - BROKER_ENDPOINT=wss://broker.${NM_DOMAIN}
+      - SERVER_NAME=${NM_DOMAIN}
+      - SERVER_API_CONN_STRING=api.${NM_DOMAIN}:443
+      - COREDNS_ADDR=${SERVER_HOST}
+      - SERVER_HTTP_HOST=api.${NM_DOMAIN}
+
+  netmaker-ui:
+    container_name: netmaker-ui
+    image: gravitl/netmaker-ui:${UI_IMAGE_TAG}
+    env_file: ./netmaker.env
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:80"
+    environment:
+      BACKEND_URL: "https://api.${NM_DOMAIN}"
+    depends_on:
+      - netmaker
+
+  mq:
+    container_name: netmaker-mq
+    image: eclipse-mosquitto:2.0.15-openssl
+    env_file: ./netmaker.env
+    restart: unless-stopped
+    depends_on:
+      - netmaker
+    command: ["/mosquitto/config/wait.sh"]
+    ports:
+      - "127.0.0.1:8883:8883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./wait.sh:/mosquitto/config/wait.sh
+      - mosquitto_logs:/mosquitto/log
+      - mosquitto_data:/mosquitto/data
+
+volumes:
+  sqldata:
+  dnsconfig:
+  mosquitto_logs:
+  mosquitto_data:
