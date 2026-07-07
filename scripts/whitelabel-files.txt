@@ -4,6 +4,12 @@
 
 # Package branding (name, copyright, Windows metadata)
 Cargo.toml
+libs/portable/Cargo.toml
+
+# Core runtime defaults and session workaround
+src/common.rs
+src/ui_session_interface.rs
+src/ipc.rs
 
 # App and tray icons (source + generated)
 res/icon.png
@@ -20,6 +26,29 @@ flutter/assets/icon.ico
 # Icon build script (includes our 128px size)
 scripts/update_icons_from_png.py
 
-# Optional: add src/ paths if you customize and want to keep your version on merge:
-# src/common.rs
-# src/ui/index.tis
+# Flutter platform branding
+flutter/macos/Runner/Configs/AppInfo.xcconfig
+flutter/macos/Runner/Info.plist
+flutter/macos/Runner/Base.lproj/MainMenu.xib
+flutter/macos/Runner.xcodeproj/project.pbxproj
+flutter/macos/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme
+flutter/ios/Runner/Info.plist
+flutter/android/app/src/main/AndroidManifest.xml
+flutter/android/app/src/main/res/values/strings.xml
+flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt
+flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/BootReceiver.kt
+flutter/lib/desktop/pages/desktop_setting_page.dart
+
+# Linux desktop entries
+res/rustdesk.desktop
+res/rustdesk-link.desktop
+
+# English UI strings with MultiDesk branding
+src/lang/en.rs
+
+# macOS build output path
+build.py
+
+# GitHub Actions workflows
+.github/workflows/multidesk-android.yml
+.github/workflows/multidesk-windows.yml

@@ -77,3 +77,48 @@ After building, verify the configuration:
 - Users can still override these settings through the UI
 - The API Server field is intentionally left blank as requested
 - The executable name detection is case-insensitive
+
+## GitHub Actions CI
+
+Builds for platforms that cannot be compiled on macOS are available as GitHub Actions workflows.
+
+### Android APK
+
+Workflow: `.github/workflows/multidesk-android.yml`
+
+1. Push this repo to GitHub (or merge the workflow file to `master`).
+2. Authenticate the GitHub CLI: `gh auth login`
+3. Trigger a build (arm64 phone APK by default):
+
+```bash
+gh workflow run "Build MultiDesk (Android)"
+```
+
+Optional inputs:
+
+```bash
+# All phone/tablet ABIs
+gh workflow run "Build MultiDesk (Android)" -f abi=all -f reltype=release
+
+# x86_64 emulator APK
+gh workflow run "Build MultiDesk (Android)" -f abi=x86_64 -f reltype=release
+```
+
+4. Download the APK from the run’s **Artifacts** tab, or:
+
+```bash
+gh run list --workflow="Build MultiDesk (Android)" --limit 1
+gh run download <run-id> -D ./apk-out
+```
+
+APKs are named `multidesk-<version>-<arch>-release.apk`. Without `ANDROID_SIGNING_*` repository secrets, the workflow uses a debug keystore (fine for testing; not for Play Store).
+
+### Windows
+
+Workflow: `.github/workflows/multidesk-windows.yml`
+
+```bash
+gh workflow run "Build MultiDesk (Windows)"
+```
+
+Artifacts: `multidesk-windows`, `multidesk-windows-flutter`, and `multidesk-windows-installer`.

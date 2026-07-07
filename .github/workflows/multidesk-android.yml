@@ -1,0 +1,291 @@
+name: Build MultiDesk (Android)
+
+on:
+  workflow_dispatch:
+    inputs:
+      abi:
+        description: Android ABI to build
+        required: true
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86_64
+          - all
+      reltype:
+        description: Build type
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/multidesk-android.yml"
+      - "flutter/android/**"
+      - "flutter/ndk_*.sh"
+      - "flutter/build_android_deps.sh"
+      - "src/**"
+      - "Cargo.toml"
+      - "vcpkg.json"
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  RUST_VERSION: "1.75"
+  CARGO_NDK_VERSION: "3.1.2"
+  NDK_VERSION: "r28c"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
+
+jobs:
+  generate-bridge:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: rustfmt
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+
+      - name: Flutter pub get
+        run: |
+          cd flutter && flutter pub get && cd ..
+
+      - name: Run bridge codegen
+        run: |
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  build-android:
+    needs: generate-bridge
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            target: aarch64-linux-android
+            arch: aarch64
+            ndk_lib: aarch64-linux-android
+            flutter_platform: android-arm64
+            apk_suffix: arm64-v8a
+            ndk_script: ./flutter/ndk_arm64.sh
+            build: ${{ github.event_name != 'workflow_dispatch' || inputs.abi == 'arm64-v8a' || inputs.abi == 'all' }}
+          - abi: armeabi-v7a
+            target: armv7-linux-androideabi
+            arch: armv7
+            ndk_lib: arm-linux-androideabi
+            flutter_platform: android-arm
+            apk_suffix: armeabi-v7a
+            ndk_script: ./flutter/ndk_arm.sh
+            build: ${{ github.event_name == 'workflow_dispatch' && (inputs.abi == 'armeabi-v7a' || inputs.abi == 'all') }}
+          - abi: x86_64
+            target: x86_64-linux-android
+            arch: x86_64
+            ndk_lib: x86_64-linux-android
+            flutter_platform: android-x64
+            apk_suffix: x86_64
+            ndk_script: ./flutter/ndk_x64.sh
+            build: ${{ github.event_name == 'workflow_dispatch' && (inputs.abi == 'x86_64' || inputs.abi == 'all') }}
+    steps:
+      - name: Skip unselected ABI
+        if: matrix.build != true
+        run: echo "Skipping ${{ matrix.abi }} for this run."
+
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.build == true
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
+      - name: Export GitHub Actions cache environment variables
+        if: matrix.build == true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Install dependencies
+        if: matrix.build == true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake curl gcc-multilib git g++ g++-multilib \
+            libayatana-appindicator3-dev libasound2-dev libc6-dev libclang-dev \
+            libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgtk-3-dev libpam0g-dev libpulse-dev libva-dev \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev \
+            libxfixes-dev llvm-dev nasm ninja-build openjdk-17-jdk-headless \
+            pkg-config tree wget
+
+      - name: Checkout source code
+        if: matrix.build == true
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get version
+        if: matrix.build == true
+        id: version
+        run: |
+          v=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve build type
+        if: matrix.build == true
+        id: reltype
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "reltype=${{ inputs.reltype }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "reltype=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Flutter
+        if: matrix.build == true
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Patch flutter
+        if: matrix.build == true
+        env:
+          FLUTTER_VERSION: ${{ env.FLUTTER_VERSION }}
+        run: bash .github/patches/apply_flutter_dropdown_patch.sh
+
+      - name: Setup NDK
+        if: matrix.build == true
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        if: matrix.build == true
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        if: matrix.build == true
+        run: ./flutter/build_android_deps.sh "${{ matrix.abi }}"
+
+      - name: Restore bridge artifact
+        if: matrix.build == true
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install Rust toolchain
+        if: matrix.build == true
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        if: matrix.build == true
+        with:
+          prefix-key: multidesk-android
+          key: ${{ matrix.target }}
+
+      - name: Build Rust library
+        if: matrix.build == true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
+          ${{ matrix.ndk_script }}
+          mkdir -p "./flutter/android/app/src/main/jniLibs/${{ matrix.abi }}"
+          cp "./target/${{ matrix.target }}/release/liblibrustdesk.so" \
+            "./flutter/android/app/src/main/jniLibs/${{ matrix.abi }}/librustdesk.so"
+
+      - name: Build APK
+        if: matrix.build == true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+        run: |
+          export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
+          sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
+          if [ -z "${{ secrets.ANDROID_SIGNING_KEY }}" ]; then
+            sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+          fi
+          cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/${{ matrix.ndk_lib }}/libc++_shared.so" \
+            "./flutter/android/app/src/main/jniLibs/${{ matrix.abi }}/"
+          cp "./target/${{ matrix.target }}/release/liblibrustdesk.so" \
+            "./flutter/android/app/src/main/jniLibs/${{ matrix.abi }}/librustdesk.so"
+          pushd flutter
+          flutter build apk "--${{ steps.reltype.outputs.reltype }}" \
+            --target-platform "${{ matrix.flutter_platform }}" \
+            --split-per-abi
+          popd
+          mkdir -p signed-apk
+          cp "flutter/build/app/outputs/flutter-apk/app-${{ matrix.apk_suffix }}-${{ steps.reltype.outputs.reltype }}.apk" \
+            "signed-apk/multidesk-${{ steps.version.outputs.version }}-${{ matrix.arch }}-${{ steps.reltype.outputs.reltype }}.apk"
+
+      - name: Sign APK (optional)
+        if: matrix.build == true && env.ANDROID_SIGNING_KEY != ''
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: ./signed-apk
+          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+          alias: ${{ secrets.ANDROID_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload APK artifact
+        if: matrix.build == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: multidesk-android-${{ matrix.arch }}-${{ steps.reltype.outputs.reltype }}
+          path: signed-apk/*.apk
+          if-no-files-found: error
