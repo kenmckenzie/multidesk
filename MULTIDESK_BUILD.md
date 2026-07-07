@@ -122,3 +122,14 @@ gh workflow run "Build MultiDesk (Windows)"
 ```
 
 Artifacts: `multidesk-windows`, `multidesk-windows-flutter`, and `multidesk-windows-installer`.
+
+### Icons (all platforms)
+
+Use one canonical square logo at `res/mac-icon.png` (same look as the macOS dock icon). Regenerate bundle icons with:
+
+```bash
+python3 scripts/update_icons_from_png.py
+cd flutter && dart run flutter_launcher_icons   # Android + iOS only
+```
+
+Windows `app_icon.ico` and macOS `AppIcon.icns` come from the script (not `flutter_launcher_icons`).

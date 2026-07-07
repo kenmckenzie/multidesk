@@ -1,78 +1,91 @@
 #!/usr/bin/env python3
-"""Generate platform icons from res/icon.png.
+"""Generate platform icons from res/mac-icon.png (same look as macOS AppIcon.icns).
 
 Run from repo root:
   python3 scripts/update_icons_from_png.py
 
-On macOS this also writes flutter/macos/Runner/AppIcon.icns (RustDesk uses
-AppIcon.icns directly, not Assets.xcassets, so flutter_launcher_icons skips macOS).
+Uses macOS sips/iconutil when available (no Pillow required). Pillow is optional for
+--from-symbol letterboxing from a wide logo PNG.
 
-Optional: cd flutter && dart run flutter_launcher_icons  (Android/iOS/Windows)
+flutter_launcher_icons is not used for Windows/macOS app bundle icons; this script
+writes flutter/windows/runner/resources/app_icon.ico and flutter/macos/Runner/AppIcon.icns.
 """
-from pathlib import Path
+from __future__ import annotations
+
+import argparse
 import shutil
+import struct
 import subprocess
 import tempfile
-
-try:
-    from PIL import Image
-except ImportError:
-    print("Install Pillow: pip install Pillow")
-    raise
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SRC = REPO_ROOT / "res" / "icon.png"
-# Multiple sizes so OS picks nearest (reduces blur from scaling); include 128 for desktop/taskbar
+DESKTOP_SRC = REPO_ROOT / "res" / "mac-icon.png"
+LEGACY_SRC = REPO_ROOT / "res" / "icon.png"
+# Windows picks nearest size; include 256 for crisp taskbar/start-menu icons.
 SIZES_ICO = (16, 24, 32, 48, 64, 128, 256)
+TRAY_ICO_SIZES = (16, 32)
 
 
-def _make_bg_transparent(img: Image.Image, threshold: int = 30) -> Image.Image:
-    """Replace black/near-black background with transparency. Preserves logo color."""
-    img = img.convert("RGBA")
-    data = img.getdata()
-    out = []
-    for item in data:
-        r, g, b, a = item
-        if r <= threshold and g <= threshold and b <= threshold:
-            out.append((r, g, b, 0))
-        else:
-            out.append(item)
-    img.putdata(out)
-    return img
+def _have_sips() -> bool:
+    return shutil.which("sips") is not None
 
 
-def fit_symbol_to_square(
-    img: Image.Image,
-    size: int = 512,
-    *,
-    padding: float = 0.08,
-) -> Image.Image:
-    """Scale a wide logo into a square canvas without stretching (letterbox)."""
-    img = _make_bg_transparent(img)
-    bbox = img.getbbox()
-    if bbox:
-        img = img.crop(bbox)
-    inner = int(size * (1 - 2 * padding))
-    img.thumbnail((inner, inner), Image.Resampling.LANCZOS)
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    canvas.paste(img, ((size - img.width) // 2, (size - img.height) // 2), img)
-    return canvas
+def _resize_png(source: Path, size: int, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if _have_sips():
+        subprocess.run(
+            ["sips", "-z", str(size), str(size), str(source), "--out", str(dest)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        return
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError(
+            "sips not found and Pillow is not installed; run on macOS or pip install Pillow"
+        ) from exc
+    img = Image.open(source).convert("RGBA")
+    img.resize((size, size), Image.Resampling.LANCZOS).save(dest)
 
 
-def write_square_icon_from_symbol(symbol_path: Path, *destinations: Path, size: int = 512) -> Image.Image:
-    symbol_path = symbol_path.resolve()
-    if not symbol_path.exists():
-        raise FileNotFoundError(f"Symbol source not found: {symbol_path}")
-    icon = fit_symbol_to_square(Image.open(symbol_path), size=size)
-    for destination in destinations:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        icon.save(destination)
-    return icon
+def write_ico_from_png_source(source: Path, output: Path, sizes: tuple[int, ...]) -> None:
+    """Write a multi-size .ico using PNG payloads (Windows Vista+)."""
+    source = source.resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"Icon source not found: {source}")
+
+    png_blobs: list[tuple[int, bytes]] = []
+    with tempfile.TemporaryDirectory(prefix="multidesk-ico-") as tmp:
+        tmp_path = Path(tmp)
+        for size in sizes:
+            png_path = tmp_path / f"{size}.png"
+            _resize_png(source, size, png_path)
+            png_blobs.append((size, png_path.read_bytes()))
+
+    png_blobs.sort(key=lambda item: item[0])
+    count = len(png_blobs)
+    header = struct.pack("<HHH", 0, 1, count)
+    entries = bytearray()
+    images = bytearray()
+    offset = 6 + 16 * count
+    for size, png_bytes in png_blobs:
+        width = 0 if size >= 256 else size
+        height = width
+        entries.extend(
+            struct.pack("<BBBBHHII", width, height, 0, 0, 1, 32, len(png_bytes), offset)
+        )
+        images.extend(png_bytes)
+        offset += len(png_bytes)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(header + entries + images)
+    print(f"Wrote {output}")
 
 
 def generate_macos_icns(source: Path, output: Path) -> None:
     """Build AppIcon.icns with sips/iconutil (macOS only)."""
-    if shutil.which("iconutil") is None or shutil.which("sips") is None:
+    if shutil.which("iconutil") is None or not _have_sips():
         print("iconutil/sips not found; skip macOS AppIcon.icns")
         return
     source = source.resolve()
@@ -95,11 +108,7 @@ def generate_macos_icns(source: Path, output: Path) -> None:
         iconset.mkdir()
         for name, size in iconset_entries:
             dest = iconset / name
-            subprocess.run(
-                ["sips", "-z", str(size), str(size), str(source), "--out", str(dest)],
-                check=True,
-                stdout=subprocess.DEVNULL,
-            )
+            _resize_png(source, size, dest)
         output.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["iconutil", "-c", "icns", str(iconset), "-o", str(output.resolve())],
@@ -108,14 +117,65 @@ def generate_macos_icns(source: Path, output: Path) -> None:
     print(f"Wrote {output}")
 
 
-def main():
-    import argparse
+def sync_png_copies(source: Path) -> None:
+    """Keep square PNG sources and in-app assets identical to the macOS icon."""
+    source = source.resolve()
+    copies = [
+        REPO_ROOT / "res" / "icon.png",
+        REPO_ROOT / "res" / "mac-icon.png",
+        REPO_ROOT / "flutter" / "assets" / "icon.png",
+    ]
+    data = source.read_bytes()
+    for dest in copies:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        print(f"Wrote {dest}")
 
-    parser = argparse.ArgumentParser(description="Generate MultiDesk icons from res/icon.png")
+
+def write_square_icon_from_symbol(symbol_path: Path, *destinations: Path, size: int = 512):
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("--from-symbol requires Pillow: pip install Pillow") from exc
+
+    def _make_bg_transparent(img: Image.Image, threshold: int = 30) -> Image.Image:
+        img = img.convert("RGBA")
+        data = img.getdata()
+        out = []
+        for item in data:
+            r, g, b, a = item
+            if r <= threshold and g <= threshold and b <= threshold:
+                out.append((r, g, b, 0))
+            else:
+                out.append(item)
+        img.putdata(out)
+        return img
+
+    symbol_path = symbol_path.resolve()
+    if not symbol_path.exists():
+        raise FileNotFoundError(f"Symbol source not found: {symbol_path}")
+    img = _make_bg_transparent(Image.open(symbol_path))
+    bbox = img.getbbox()
+    if bbox:
+        img = img.crop(bbox)
+    inner = int(size * 0.84)
+    img.thumbnail((inner, inner), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(img, ((size - img.width) // 2, (size - img.height) // 2), img)
+    for destination in destinations:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        canvas.save(destination)
+    return canvas
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Generate MultiDesk icons (macOS + Windows) from res/mac-icon.png"
+    )
     parser.add_argument(
         "--from-symbol",
         type=Path,
-        help="Build square res/icon.png from a wide symbol PNG (preserves aspect ratio)",
+        help="Build square mac-icon.png from a wide symbol PNG (requires Pillow)",
     )
     args = parser.parse_args()
 
@@ -127,60 +187,30 @@ def main():
         )
         print(f"Wrote square icons from {args.from_symbol}")
 
-    if not SRC.exists():
-        print(f"Source not found: {SRC}")
+    source = DESKTOP_SRC if DESKTOP_SRC.exists() else LEGACY_SRC
+    if not source.exists():
+        print(f"Source not found: {source}")
         return 1
-    img = Image.open(SRC).convert("RGBA")
-    img = _make_bg_transparent(img)
-    # Build multi-size ico (Pillow requires saving from the largest image first).
-    icons = [img.resize((size, size), Image.Resampling.LANCZOS) for size in SIZES_ICO]
-    ico_sizes = [(s, s) for s in SIZES_ICO]
 
-    def write_ico(path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        icons[-1].save(
-            path,
-            format="ICO",
-            sizes=ico_sizes,
-            append_images=icons[:-1],
-        )
+    sync_png_copies(source)
 
-    # Windows runner icon
-    out_win = REPO_ROOT / "flutter" / "windows" / "runner" / "resources" / "app_icon.ico"
-    write_ico(out_win)
-    print(f"Wrote {out_win}")
-    # res/icon.ico + runtime copy for win32_window LoadCustomIcon()
-    out_res = REPO_ROOT / "res" / "icon.ico"
-    write_ico(out_res)
-    print(f"Wrote {out_res}")
-    out_flutter_ico = REPO_ROOT / "flutter" / "assets" / "icon.ico"
-    write_ico(out_flutter_ico)
-    print(f"Wrote {out_flutter_ico}")
-    # Tray icon: include 16 and 32 so taskbar picks sharp size
-    out_tray = REPO_ROOT / "res" / "tray-icon.ico"
-    t16 = img.resize((16, 16), Image.Resampling.LANCZOS)
-    t32 = img.resize((32, 32), Image.Resampling.LANCZOS)
-    t32.save(out_tray, format="ICO", sizes=[(16, 16), (32, 32)], append_images=[t16])
-    print(f"Wrote {out_tray}")
-    # In-app icon: transparent PNG for loadIcon() (no black background)
-    out_app_icon = REPO_ROOT / "flutter" / "assets" / "icon.png"
-    out_app_icon.parent.mkdir(parents=True, exist_ok=True)
-    img.save(out_app_icon)
-    print(f"Wrote {out_app_icon}")
+    write_ico_from_png_source(
+        source,
+        REPO_ROOT / "flutter" / "windows" / "runner" / "resources" / "app_icon.ico",
+        SIZES_ICO,
+    )
+    write_ico_from_png_source(source, REPO_ROOT / "res" / "icon.ico", SIZES_ICO)
+    write_ico_from_png_source(
+        source, REPO_ROOT / "flutter" / "assets" / "icon.ico", SIZES_ICO
+    )
+    write_ico_from_png_source(
+        source, REPO_ROOT / "res" / "tray-icon.ico", TRAY_ICO_SIZES
+    )
 
-    # Favicon 32x32 for web (if web dir exists / not fully ignored in build)
-    web_dir = REPO_ROOT / "flutter" / "web"
-    if web_dir.exists():
-        favicon = web_dir / "favicon.png"
-        favicon.parent.mkdir(parents=True, exist_ok=True)
-        img.resize((32, 32), Image.Resampling.LANCZOS).save(favicon)
-        print(f"Wrote {favicon}")
-    else:
-        print("flutter/web/ not present; run 'cd flutter && dart run flutter_launcher_icons' to generate web favicon.")
-
-    mac_src = REPO_ROOT / "res" / "mac-icon.png"
-    mac_icns = REPO_ROOT / "flutter" / "macos" / "Runner" / "AppIcon.icns"
-    generate_macos_icns(mac_src, mac_icns)
+    generate_macos_icns(
+        source,
+        REPO_ROOT / "flutter" / "macos" / "Runner" / "AppIcon.icns",
+    )
     return 0
 
 

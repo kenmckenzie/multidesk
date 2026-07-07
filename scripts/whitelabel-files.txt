@@ -17,6 +17,7 @@ res/mac-icon.png
 res/icon.ico
 res/tray-icon.ico
 flutter/windows/runner/resources/app_icon.ico
+flutter/assets/icon.ico
 
 # In-app logo and icon assets
 flutter/assets/logo.png
