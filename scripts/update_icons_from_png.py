@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""Generate .ico and favicon from res/icon.png for Windows and web.
-Run from repo root. For full platform icons + web favicon, also run:
-  cd flutter && dart run flutter_launcher_icons
+"""Generate platform icons from res/icon.png.
+
+Run from repo root:
+  python3 scripts/update_icons_from_png.py
+
+On macOS this also writes flutter/macos/Runner/AppIcon.icns (RustDesk uses
+AppIcon.icns directly, not Assets.xcassets, so flutter_launcher_icons skips macOS).
+
+Optional: cd flutter && dart run flutter_launcher_icons  (Android/iOS/Windows)
 """
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 
 try:
     from PIL import Image
@@ -59,6 +68,44 @@ def write_square_icon_from_symbol(symbol_path: Path, *destinations: Path, size: 
         destination.parent.mkdir(parents=True, exist_ok=True)
         icon.save(destination)
     return icon
+
+
+def generate_macos_icns(source: Path, output: Path) -> None:
+    """Build AppIcon.icns with sips/iconutil (macOS only)."""
+    if shutil.which("iconutil") is None or shutil.which("sips") is None:
+        print("iconutil/sips not found; skip macOS AppIcon.icns")
+        return
+    source = source.resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"macOS icon source not found: {source}")
+    iconset_entries = [
+        ("icon_16x16.png", 16),
+        ("icon_16x16@2x.png", 32),
+        ("icon_32x32.png", 32),
+        ("icon_32x32@2x.png", 64),
+        ("icon_128x128.png", 128),
+        ("icon_128x128@2x.png", 256),
+        ("icon_256x256.png", 256),
+        ("icon_256x256@2x.png", 512),
+        ("icon_512x512.png", 512),
+        ("icon_512x512@2x.png", 1024),
+    ]
+    with tempfile.TemporaryDirectory(prefix="multidesk-iconset-") as tmp:
+        iconset = Path(tmp) / "AppIcon.iconset"
+        iconset.mkdir()
+        for name, size in iconset_entries:
+            dest = iconset / name
+            subprocess.run(
+                ["sips", "-z", str(size), str(size), str(source), "--out", str(dest)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["iconutil", "-c", "icns", str(iconset), "-o", str(output.resolve())],
+            check=True,
+        )
+    print(f"Wrote {output}")
 
 
 def main():
@@ -130,6 +177,10 @@ def main():
         print(f"Wrote {favicon}")
     else:
         print("flutter/web/ not present; run 'cd flutter && dart run flutter_launcher_icons' to generate web favicon.")
+
+    mac_src = REPO_ROOT / "res" / "mac-icon.png"
+    mac_icns = REPO_ROOT / "flutter" / "macos" / "Runner" / "AppIcon.icns"
+    generate_macos_icns(mac_src, mac_icns)
     return 0
 
 

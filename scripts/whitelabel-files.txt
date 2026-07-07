@@ -28,6 +28,7 @@ scripts/update_icons_from_png.py
 
 # Flutter platform branding
 flutter/macos/Runner/Configs/AppInfo.xcconfig
+flutter/macos/Runner/AppIcon.icns
 flutter/macos/Runner/Info.plist
 flutter/macos/Runner/Base.lproj/MainMenu.xib
 flutter/macos/Runner.xcodeproj/project.pbxproj
