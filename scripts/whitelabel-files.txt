@@ -37,6 +37,7 @@ flutter/android/app/src/main/AndroidManifest.xml
 flutter/android/app/src/main/res/values/strings.xml
 flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt
 flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/BootReceiver.kt
+flutter/android/app/build.gradle
 flutter/lib/desktop/pages/desktop_setting_page.dart
 
 # Linux desktop entries

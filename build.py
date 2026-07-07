@@ -46,6 +46,28 @@ def system2(cmd):
         sys.exit(-1)
 
 
+def codesign_macos_app_adhoc(app_path):
+    """Ad-hoc sign a macOS app without hardened runtime.
+
+    Flutter/Xcode release builds use ad-hoc signing (CODE_SIGN_IDENTITY="-") but still
+    enable hardened runtime on the main executable. Embedded frameworks are only ad-hoc
+    signed without runtime, which makes dyld reject them at launch.
+    """
+    app = Path(app_path)
+    if not app.is_dir():
+        sys.stderr.write(f"App bundle not found: {app}\n")
+        sys.exit(-1)
+    contents = app / "Contents"
+    for framework in sorted((contents / "Frameworks").glob("*.framework")):
+        system2(f'codesign --force --sign - "{framework}"')
+    for dylib in sorted((contents / "Frameworks").glob("*.dylib")):
+        system2(f'codesign --force --sign - "{dylib}"')
+    for macho in sorted((contents / "MacOS").glob("*")):
+        if macho.is_file() and os.access(macho, os.X_OK):
+            system2(f'codesign --force --sign - "{macho}"')
+    system2(f'codesign --force --sign - "{app}"')
+
+
 def get_version():
     with open("Cargo.toml", encoding="utf-8") as fh:
         for line in fh:
@@ -417,11 +439,12 @@ def build_flutter_dmg(version, features):
     mac_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x86_64'
     system2(
         f'FLUTTER_XCODE_ARCHS={mac_arch} FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --release')
-    system2('cp -rf ../target/release/service ./build/macos/Build/Products/Release/RustDesk.app/Contents/MacOS/')
+    system2('cp -rf ../target/release/service ./build/macos/Build/Products/Release/MultiDesk.app/Contents/MacOS/')
+    codesign_macos_app_adhoc('./build/macos/Build/Products/Release/MultiDesk.app')
     '''
     system2(
-        "create-dmg --volname \"RustDesk Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon RustDesk.app 200 190 --hide-extension RustDesk.app rustdesk.dmg ./build/macos/Build/Products/Release/RustDesk.app")
-    os.rename("rustdesk.dmg", f"../rustdesk-{version}.dmg")
+        "create-dmg --volname \"MultiDesk Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon MultiDesk.app 200 190 --hide-extension MultiDesk.app multidesk.dmg ./build/macos/Build/Products/Release/MultiDesk.app")
+    os.rename("multidesk.dmg", f"../multidesk-{version}.dmg")
     '''
     os.chdir("..")
 

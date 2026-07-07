@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=RustDesk
+Name=MultiDesk
 NoDisplay=true
-MimeType=x-scheme-handler/rustdesk;
-TryExec=rustdesk
-Exec=rustdesk %u
+MimeType=x-scheme-handler/multidesk;x-scheme-handler/rustdesk;
+TryExec=multidesk
+Exec=multidesk %u
 Icon=rustdesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=rustdesk
+StartupWMClass=multidesk

@@ -2162,6 +2162,11 @@ fn set_multidesk_defaults() {
     if Config::get_option("theme").is_empty() {
         Config::set_option("theme".to_owned(), "dark".to_owned());
     }
+
+    let mut buildin_settings = config::BUILTIN_SETTINGS.write().unwrap();
+    buildin_settings
+        .entry("hide-powered-by-me".to_owned())
+        .or_insert_with(|| "Y".to_owned());
 }
 
 fn read_custom_client_advanced_settings(

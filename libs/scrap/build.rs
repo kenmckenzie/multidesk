@@ -137,6 +137,19 @@ fn find_package(name: &str) -> Vec<PathBuf> {
     }
 }
 
+
+/// On macOS, Homebrew LLVM's libclang can cause bindgen to emit opaque codec
+/// config structs (only an `_address` field). Prefer Apple Command Line Tools.
+fn fix_libclang_path() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
+        return;
+    }
+    let apple = PathBuf::from("/Library/Developer/CommandLineTools/usr/lib");
+    if apple.join("libclang.dylib").exists() {
+        env::set_var("LIBCLANG_PATH", apple);
+    }
+}
+
 fn generate_bindings(
     ffi_header: &Path,
     include_paths: &[PathBuf],
@@ -146,9 +159,9 @@ fn generate_bindings(
 ) {
     let mut b = bindgen::builder()
         .header(ffi_header.to_str().unwrap())
-        .allowlist_type(regex)
         .allowlist_var(regex)
         .allowlist_function(regex)
+        .allowlist_type(regex)
         .rustified_enum(regex)
         .trust_clang_mangling(false)
         .layout_tests(false) // breaks 32/64-bit compat
@@ -244,9 +257,11 @@ fn main() {
     env::remove_var("CARGO_CFG_TARGET_FEATURE");
     env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
 
+    fix_libclang_path();
+
     find_package("libyuv");
     gen_vcpkg_package("libvpx", "vpx_ffi.h", "vpx_ffi.rs", "^[vV].*");
-    gen_vcpkg_package("aom", "aom_ffi.h", "aom_ffi.rs", "^(aom|AOM|OBU|AV1).*");
+    gen_vcpkg_package("aom", "aom_ffi.h", "aom_ffi.rs", "^(aom|AOM|OBU|AV1|cfg_options).*");
     gen_vcpkg_package("libyuv", "yuv_ffi.h", "yuv_ffi.rs", ".*");
     // ffmpeg();
 
