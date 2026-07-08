@@ -1,0 +1,225 @@
+name: Build MultiDesk (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: macOS architecture to build
+        required: true
+        default: aarch64
+        type: choice
+        options:
+          - aarch64
+          - x86_64
+          - all
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/multidesk-macos.yml"
+      - "flutter/macos/**"
+      - "flutter/lib/**"
+      - "flutter/pubspec.yaml"
+      - "src/**"
+      - "libs/**"
+      - "build.py"
+      - "Cargo.toml"
+      - "vcpkg.json"
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  MAC_RUST_VERSION: "1.81"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  # Generate the Flutter-Rust bridge on Linux; the macOS job restores it.
+  generate-bridge:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.75"
+          targets: x86_64-unknown-linux-gnu
+          components: rustfmt
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+
+      - name: Flutter pub get
+        run: cd flutter && flutter pub get && cd ..
+
+      - name: Run bridge codegen
+        run: |
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  build-macos:
+    needs: generate-bridge
+    name: ${{ matrix.job.target }}
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Filtered below so workflow_dispatch can pick a single arch.
+        job:
+          - {
+              target: aarch64-apple-darwin,
+              os: macos-14,
+              arch: aarch64,
+              extra-build-args: "--screencapturekit",
+              min-macos-version: "12.3",
+            }
+          - {
+              target: x86_64-apple-darwin,
+              os: macos-15-intel,
+              arch: x86_64,
+              extra-build-args: "",
+              min-macos-version: "",
+            }
+    steps:
+      - name: Skip arch not selected (workflow_dispatch)
+        id: guard
+        shell: bash
+        run: |
+          sel="${{ github.event.inputs.arch }}"
+          if [ -n "$sel" ] && [ "$sel" != "all" ] && [ "$sel" != "${{ matrix.job.arch }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping ${{ matrix.job.arch }} (selected: $sel)"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source code
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build runtime
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          brew install llvm nasm
+          if command -v pkg-config &>/dev/null; then
+            echo "pkg-config already installed"
+          else
+            brew install pkg-config
+          fi
+
+      - name: Install Flutter
+        if: steps.guard.outputs.run == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Patch flutter
+        if: steps.guard.outputs.run == 'true'
+        shell: bash
+        env:
+          FLUTTER_VERSION: ${{ env.FLUTTER_VERSION }}
+        run: bash .github/patches/apply_flutter_dropdown_patch.sh
+
+      - name: Workaround for flutter scheduler issue
+        if: steps.guard.outputs.run == 'true'
+        shell: bash
+        run: |
+          cd "$(dirname "$(which flutter)")"
+          # https://github.com/flutter/flutter/issues/133533
+          sed -i -e 's/_setFramesEnabledState(false);/\/\/_setFramesEnabledState(false);/g' ../packages/flutter/lib/src/scheduler/binding.dart
+
+      - name: Install Rust toolchain
+        if: steps.guard.outputs.run == 'true'
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.MAC_RUST_VERSION }}
+          targets: ${{ matrix.job.target }}
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.guard.outputs.run == 'true'
+        with:
+          prefix-key: ${{ matrix.job.os }}
+
+      - name: Restore bridge files
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        if: steps.guard.outputs.run == 'true'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do
+              echo "=== $f ==="; cat "$f"; echo;
+            done
+            exit 1
+          fi
+
+      - name: Build MultiDesk
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          MIN_MACOS_VERSION="${{ matrix.job.min-macos-version }}"
+          if [ -n "$MIN_MACOS_VERSION" ]; then
+            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET\=[0-9]*.[0-9]*/MACOSX_DEPLOYMENT_TARGET=${MIN_MACOS_VERSION}/" build.py
+            sed -i -e "s/platform :osx, '.*'/platform :osx, '${MIN_MACOS_VERSION}'/" flutter/macos/Podfile
+            sed -i -e "s/osx_minimum_system_version = \"[0-9]*.[0-9]*\"/osx_minimum_system_version = \"${MIN_MACOS_VERSION}\"/" Cargo.toml
+            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET = [0-9]*.[0-9]*;/MACOSX_DEPLOYMENT_TARGET = ${MIN_MACOS_VERSION};/" flutter/macos/Runner.xcodeproj/project.pbxproj
+          fi
+          # build.py builds the Flutter app and ad-hoc signs MultiDesk.app internally.
+          ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
+
+      - name: Package MultiDesk.app as zip
+        if: steps.guard.outputs.run == 'true'
+        id: package
+        run: |
+          VERSION="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          APP_DIR="flutter/build/macos/Build/Products/Release"
+          if [ ! -d "$APP_DIR/MultiDesk.app" ]; then
+            echo "MultiDesk.app not found in $APP_DIR"; ls -la "$APP_DIR" || true; exit 1
+          fi
+          OUT="MultiDesk-${VERSION}-${{ matrix.job.arch }}.zip"
+          # ditto preserves the bundle symlink structure required for a runnable .app.
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR/MultiDesk.app" "$OUT"
+          echo "Built $OUT"
+
+      - name: Upload MultiDesk macOS artifact
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: multidesk-macos-${{ matrix.job.arch }}
+          path: MultiDesk-${{ steps.package.outputs.version }}-${{ matrix.job.arch }}.zip
