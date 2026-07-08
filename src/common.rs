@@ -2207,6 +2207,14 @@ pub fn load_custom_client() {
 pub const MULTIDESK_DEFAULT_PERMANENT_PASSWORD: &str = "@Cwl1234";
 
 pub fn is_multidesk_executable() -> bool {
+    // On mobile the running process is not named after the app (e.g. Android
+    // launches via `app_process`), so exe-name detection is unreliable. This
+    // fork's mobile builds are always MultiDesk, so treat them as such.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return true;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     std::env::current_exe()
         .ok()
         .and_then(|path| {
