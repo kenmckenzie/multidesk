@@ -132,25 +132,43 @@ fn check_update(manually: bool) -> ResultType<()> {
     if update_url.is_empty() {
         log::debug!("No update available.");
     } else {
-        let download_url = update_url.replace("tag", "download");
-        let version = download_url.split('/').last().unwrap_or_default();
+        // For custom (MultiDesk) clients the stored URL is already the direct
+        // download URL from the self-hosted manifest, and the version comes from
+        // the manifest. For RustDesk, derive the download URL from the GitHub
+        // release tag page (tag -> download + versioned, arch-specific filename).
         #[cfg(target_os = "windows")]
-        let download_url = if cfg!(feature = "flutter") {
-            let Some(arch) = crate::platform::windows::release_arch_suffix() else {
-                bail!(
-                    "Unsupported Windows release architecture: {}",
-                    std::env::consts::ARCH
-                );
-            };
-            format!(
-                "{}/rustdesk-{}-{}.{}",
-                download_url,
-                version,
-                arch,
-                if update_msi { "msi" } else { "exe" }
+        let (download_url, version) = if crate::is_custom_client() {
+            (
+                update_url.clone(),
+                crate::common::SOFTWARE_UPDATE_VERSION.lock().unwrap().clone(),
             )
         } else {
-            format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
+            let download_url = update_url.replace("tag", "download");
+            let version = download_url.split('/').last().unwrap_or_default().to_string();
+            let download_url = if cfg!(feature = "flutter") {
+                let Some(arch) = crate::platform::windows::release_arch_suffix() else {
+                    bail!(
+                        "Unsupported Windows release architecture: {}",
+                        std::env::consts::ARCH
+                    );
+                };
+                format!(
+                    "{}/rustdesk-{}-{}.{}",
+                    download_url,
+                    version,
+                    arch,
+                    if update_msi { "msi" } else { "exe" }
+                )
+            } else {
+                format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
+            };
+            (download_url, version)
+        };
+        #[cfg(not(target_os = "windows"))]
+        let (download_url, version) = {
+            let download_url = update_url.replace("tag", "download");
+            let version = download_url.split('/').last().unwrap_or_default().to_string();
+            (download_url, version)
         };
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url(&download_url);

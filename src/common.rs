@@ -93,7 +93,12 @@ pub mod input {
 }
 
 lazy_static::lazy_static! {
+    // For custom (MultiDesk) clients this holds the direct per-platform download
+    // URL from the self-hosted manifest; for RustDesk it holds the GitHub release
+    // tag page URL. Empty means "up to date".
     pub static ref SOFTWARE_UPDATE_URL: Arc<Mutex<String>> = Default::default();
+    // The latest available version string reported by the update check.
+    pub static ref SOFTWARE_UPDATE_VERSION: Arc<Mutex<String>> = Default::default();
     pub static ref DEVICE_ID: Arc<Mutex<String>> = Default::default();
     pub static ref DEVICE_NAME: Arc<Mutex<String>> = Default::default();
     static ref PUBLIC_IPV6_ADDR: Arc<Mutex<(Option<SocketAddr>, Option<Instant>)>> = Default::default();
@@ -939,10 +944,45 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
-pub fn check_software_update() {
-    if is_custom_client() {
-        return;
+// Self-hosted MultiDesk update manifest, served as a static JSON file by Caddy.
+// Custom (MultiDesk) clients check this instead of api.rustdesk.com.
+pub const MULTIDESK_UPDATE_MANIFEST_URL: &str =
+    "https://multidesk.multisaas.co.za/download/version.json";
+
+#[derive(serde_derive::Deserialize, Default)]
+struct MultideskUpdateManifest {
+    version: String,
+    #[serde(default)]
+    windows: String,
+    #[serde(default)]
+    macos: String,
+    #[serde(default)]
+    android: String,
+    #[serde(default)]
+    page: String,
+}
+
+impl MultideskUpdateManifest {
+    // Direct download URL for the current platform, if provided.
+    fn platform_url(&self) -> Option<String> {
+        let u = if cfg!(target_os = "windows") {
+            &self.windows
+        } else if cfg!(target_os = "macos") {
+            &self.macos
+        } else if cfg!(target_os = "android") {
+            &self.android
+        } else {
+            ""
+        };
+        if u.trim().is_empty() {
+            None
+        } else {
+            Some(u.trim().to_string())
+        }
     }
+}
+
+pub fn check_software_update() {
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
     if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
         std::thread::spawn(move || allow_err!(do_check_software_update()));
@@ -953,6 +993,9 @@ pub fn check_software_update() {
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    if is_custom_client() {
+        return do_check_multidesk_update().await;
+    }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
     let proxy_conf = Config::get_socks();
@@ -996,6 +1039,61 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
         *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
     } else {
         *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+    }
+    Ok(())
+}
+
+// Self-hosted update check for custom (MultiDesk) clients: fetch a static JSON
+// manifest and, if it advertises a newer version, store the direct per-platform
+// download URL + version for the updater / UI to consume.
+async fn do_check_multidesk_update() -> hbb_common::ResultType<()> {
+    let url = MULTIDESK_UPDATE_MANIFEST_URL;
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(url, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url);
+    let is_tls_not_cached = tls_type.is_none();
+    let tls_type = tls_type.unwrap_or(TlsType::Rustls);
+    let client = create_http_client_async(tls_type, false);
+    let response = match client.get(url).send().await {
+        Ok(resp) => {
+            upsert_tls_cache(tls_url, tls_type, false);
+            resp
+        }
+        Err(err) => {
+            if is_tls_not_cached && err.is_request() {
+                let tls_type = TlsType::NativeTls;
+                let client = create_http_client_async(tls_type, false);
+                let resp = client.get(url).send().await?;
+                upsert_tls_cache(tls_url, tls_type, false);
+                resp
+            } else {
+                return Err(err.into());
+            }
+        }
+    };
+    let bytes = response.bytes().await?;
+    let manifest: MultideskUpdateManifest = serde_json::from_slice(&bytes)?;
+    let latest_version = manifest.version.trim().to_string();
+
+    if get_version_number(&latest_version) > get_version_number(crate::VERSION) {
+        // Prefer the direct per-platform download URL; fall back to the page.
+        let update_url = manifest
+            .platform_url()
+            .unwrap_or_else(|| manifest.page.trim().to_string());
+        #[cfg(feature = "flutter")]
+        {
+            let mut m = HashMap::new();
+            m.insert("name", "check_software_update_finish");
+            m.insert("url", &update_url);
+            if let Ok(data) = serde_json::to_string(&m) {
+                let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
+            }
+        }
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = update_url;
+        *SOFTWARE_UPDATE_VERSION.lock().unwrap() = latest_version;
+    } else {
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+        *SOFTWARE_UPDATE_VERSION.lock().unwrap() = "".to_string();
     }
     Ok(())
 }
@@ -2161,6 +2259,11 @@ fn set_multidesk_defaults() {
     }
     if Config::get_option("theme").is_empty() {
         Config::set_option("theme".to_owned(), "dark".to_owned());
+    }
+    // Hands-off updates from the self-hosted manifest: enable background
+    // auto-update (Windows installed service) so retail clients stay current.
+    if Config::get_option("allow-auto-update").is_empty() {
+        Config::set_option("allow-auto-update".to_owned(), "Y".to_owned());
     }
 
     let mut buildin_settings = config::BUILTIN_SETTINGS.write().unwrap();

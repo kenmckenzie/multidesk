@@ -507,14 +507,23 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
-        updateUrl.isNotEmpty &&
+    final isCustom = bind.isCustomClient();
+    // RustDesk only shows the card when its own download URL prefix is present;
+    // MultiDesk shows it whenever the self-hosted manifest reports a new version.
+    final showUpdateCard = updateUrl.isNotEmpty &&
         !isCardClosed &&
-        bind.mainUriPrefixSync().contains('rustdesk')) {
-      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
+        (isCustom || bind.mainUriPrefixSync().contains('rustdesk'));
+    if (showUpdateCard) {
+      // Silent in-app update works on Windows, and on macOS when the manifest
+      // points at a .dmg. Otherwise (e.g. macOS .app.zip) fall back to opening
+      // the download link.
+      final canSilentUpdate = isWindows ||
+          (isMacOS && (!isCustom || updateUrl.toLowerCase().endsWith('.dmg')));
+      final isToUpdate = canSilentUpdate && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse('https://rustdesk.com/download');
+        final Uri url =
+            Uri.parse(isCustom ? updateUrl : 'https://rustdesk.com/download');
         await launchUrl(url);
       };
       if (isToUpdate) {
@@ -528,8 +537,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           btnText,
           onPressed,
           closeButton: true,
-          help: isToUpdate ? 'Changelog' : null,
-          link: isToUpdate
+          help: (isToUpdate && !isCustom) ? 'Changelog' : null,
+          link: (isToUpdate && !isCustom)
               ? 'https://github.com/rustdesk/rustdesk/releases/tag/${bind.mainGetNewVersion()}'
               : null);
     }
