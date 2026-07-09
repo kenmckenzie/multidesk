@@ -188,7 +188,6 @@ jobs:
       - name: Build AppImage
         run: |
           cp "multidesk-${{ steps.version.outputs.version }}.deb" appimage/rustdesk.deb
-          sed -i 's/version: .*/version: ${{ steps.version.outputs.version }}/' appimage/AppImageBuilder-x86_64.yml
           sudo apt-get install -y libarchive-tools libfuse2
           sudo pip3 install "setuptools_scm<10"
           sudo pip3 install git+https://github.com/rustdesk-org/appimage-builder.git
