@@ -196,6 +196,7 @@ jobs:
           popd
           APPIMAGE="$(ls appimage/*.AppImage | head -n 1)"
           mv "$APPIMAGE" "MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.AppImage"
+          sudo chown -R "$USER:$USER" "$GITHUB_WORKSPACE"
 
       - name: Package portable Linux bundle
         run: |
