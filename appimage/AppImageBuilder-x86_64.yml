@@ -15,11 +15,11 @@ script:
 AppDir:
   path: ./AppDir
   app_info:
-    id: rustdesk
-    name: rustdesk
+    id: multidesk
+    name: MultiDesk
     icon: rustdesk
     version: 1.4.9
-    exec: usr/share/rustdesk/rustdesk
+    exec: usr/share/rustdesk/multidesk
     exec_args: $@
   apt:
     arch:

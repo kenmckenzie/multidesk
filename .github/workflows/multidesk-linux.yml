@@ -1,0 +1,212 @@
+name: Build MultiDesk (Linux)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/multidesk-linux.yml"
+      - "flutter/linux/**"
+      - "flutter/lib/**"
+      - "flutter/assets/**"
+      - "flutter/pubspec.yaml"
+      - "src/**"
+      - "libs/**"
+      - "res/**"
+      - "build.py"
+      - "Cargo.toml"
+      - "vcpkg.json"
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  RUST_VERSION: "1.75"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  generate-bridge:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: rustfmt
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+
+      - name: Flutter pub get
+        run: cd flutter && flutter pub get && cd ..
+
+      - name: Run bridge codegen
+        run: |
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    needs: generate-bridge
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-linux
+      DEB_ARCH: amd64
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Maximize build space
+        run: |
+          sudo rm -rf /opt/ghc /usr/local/lib/android /usr/share/dotnet
+          sudo apt-get update -y
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get install -y \
+            build-essential \
+            clang \
+            cmake \
+            curl \
+            git \
+            libayatana-appindicator3-dev \
+            libasound2-dev \
+            libclang-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgtk-3-dev \
+            libpam0g-dev \
+            libpulse-dev \
+            libssl-dev \
+            libva-dev \
+            libxcb-randr0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxdo-dev \
+            libxfixes-dev \
+            nasm \
+            ninja-build \
+            pkg-config \
+            python3 \
+            python3-pip \
+            rpm \
+            unzip \
+            wget \
+            xz-utils
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: multidesk-linux-x86_64
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Flutter precache Linux
+        run: flutter precache --linux
+
+      - name: Patch flutter
+        env:
+          FLUTTER_VERSION: ${{ env.FLUTTER_VERSION }}
+        run: bash .github/patches/apply_flutter_dropdown_patch.sh
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r log_file; do
+              echo "$log_file:"
+              cat "$log_file"
+            done
+            exit 1
+          fi
+
+      - name: Build MultiDesk Linux package
+        run: python3 ./build.py --flutter --hwcodec --unix-file-copy-paste
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build AppImage
+        run: |
+          cp "multidesk-${{ steps.version.outputs.version }}.deb" appimage/rustdesk.deb
+          sed -i 's/version: .*/version: ${{ steps.version.outputs.version }}/' appimage/AppImageBuilder-x86_64.yml
+          sudo apt-get install -y libarchive-tools libfuse2
+          sudo pip3 install "setuptools_scm<10"
+          sudo pip3 install git+https://github.com/rustdesk-org/appimage-builder.git
+          pushd appimage
+          sudo appimage-builder --skip-tests --recipe ./AppImageBuilder-x86_64.yml
+          popd
+          APPIMAGE="$(ls appimage/*.AppImage | head -n 1)"
+          mv "$APPIMAGE" "MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.AppImage"
+
+      - name: Package portable Linux bundle
+        run: |
+          tar -C flutter/build/linux/x64/release -czf "MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz" bundle
+          mv "multidesk-${{ steps.version.outputs.version }}.deb" "MultiDesk-${{ steps.version.outputs.version }}-linux-amd64.deb"
+
+      - name: Upload MultiDesk Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: multidesk-linux-x86_64
+          path: |
+            MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.AppImage
+            MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+            MultiDesk-${{ steps.version.outputs.version }}-linux-amd64.deb

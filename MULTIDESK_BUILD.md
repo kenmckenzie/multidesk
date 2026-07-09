@@ -123,6 +123,16 @@ gh workflow run "Build MultiDesk (Windows)"
 
 Artifacts: `multidesk-windows`, `multidesk-windows-flutter`, and `multidesk-windows-installer`.
 
+### Linux
+
+Workflow: `.github/workflows/multidesk-linux.yml`
+
+```bash
+gh workflow run "Build MultiDesk (Linux)"
+```
+
+Artifacts: `multidesk-linux-x86_64`, containing an AppImage, a Debian package, and a portable Linux bundle. The Linux runner is named `multidesk`, uses the MultiDesk desktop title/icon, and applies the same default ID/relay configuration as the Windows build.
+
 ### Icons (all platforms)
 
 Use one canonical square logo at `res/mac-icon.png` (same look as the macOS dock icon). Regenerate bundle icons with:

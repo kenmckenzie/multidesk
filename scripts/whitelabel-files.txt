@@ -28,6 +28,10 @@ flutter/assets/icon.ico
 scripts/update_icons_from_png.py
 
 # Flutter platform branding
+appimage/AppImageBuilder-aarch64.yml
+appimage/AppImageBuilder-x86_64.yml
+flutter/linux/CMakeLists.txt
+flutter/linux/my_application.cc
 flutter/macos/Runner/Configs/AppInfo.xcconfig
 flutter/macos/Runner/AppIcon.icns
 flutter/macos/Runner/Info.plist
@@ -54,4 +58,6 @@ build.py
 
 # GitHub Actions workflows
 .github/workflows/multidesk-android.yml
+.github/workflows/multidesk-linux.yml
+.github/workflows/multidesk-macos.yml
 .github/workflows/multidesk-windows.yml
