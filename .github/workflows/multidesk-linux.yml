@@ -110,6 +110,7 @@ jobs:
             libpam0g-dev \
             libpulse-dev \
             libssl-dev \
+            libunwind-dev \
             libva-dev \
             libxcb-randr0-dev \
             libxcb-shape0-dev \
