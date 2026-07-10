@@ -116,14 +116,21 @@ if want linux; then
   gh run download "$run" -R "$REPO" -n multidesk-linux-x86_64 -D "$TMP/linux"
   appimage="$(ls "$TMP/linux"/MultiDesk-*-linux-x86_64.AppImage 2>/dev/null | head -1)"
   deb="$(ls "$TMP/linux"/MultiDesk-*-linux-amd64.deb 2>/dev/null | head -1)"
+  rpm="$(ls "$TMP/linux"/MultiDesk-*-linux-x86_64.rpm 2>/dev/null | head -1)"
+  targz="$(ls "$TMP/linux"/MultiDesk-*-linux-x86_64.tar.gz 2>/dev/null | head -1)"
   [ -n "$appimage" ] && [ -n "$deb" ] || { echo "error: AppImage/.deb not found in artifact" >&2; exit 1; }
   lver="$(basename "$appimage" | sed -nE 's/^MultiDesk-([0-9.]+)-linux-x86_64\.AppImage$/\1/p')"
   [ -n "$lver" ] && set_version "$lver"
   # Remove stale versioned Linux files, then publish the new ones.
-  find "$DL" -maxdepth 1 \( -name 'MultiDesk-*-linux-x86_64.AppImage' -o -name 'MultiDesk-*-linux-amd64.deb' \) -delete
+  find "$DL" -maxdepth 1 \( -name 'MultiDesk-*-linux-x86_64.AppImage' \
+    -o -name 'MultiDesk-*-linux-amd64.deb' \
+    -o -name 'MultiDesk-*-linux-x86_64.rpm' \
+    -o -name 'MultiDesk-*-linux-x86_64.tar.gz' \) -delete
   cp -f "$appimage" "$DL/MultiDesk-${VERSION}-linux-x86_64.AppImage"
   cp -f "$deb" "$DL/MultiDesk-${VERSION}-linux-amd64.deb"
-  echo "   published MultiDesk-${VERSION}-linux-{x86_64.AppImage,amd64.deb} (run $run)"
+  [ -n "$rpm" ] && cp -f "$rpm" "$DL/MultiDesk-${VERSION}-linux-x86_64.rpm"
+  [ -n "$targz" ] && cp -f "$targz" "$DL/MultiDesk-${VERSION}-linux-x86_64.tar.gz"
+  echo "   published Linux AppImage/.deb${rpm:+/.rpm}${targz:+/.tar.gz} (run $run)"
 fi
 
 [ -n "$VERSION" ] || { echo "error: could not determine version" >&2; exit 1; }
@@ -151,12 +158,15 @@ if [ -f "$INDEX" ]; then
   sed -i -E "s#href=\"multidesk-[0-9.]+-aarch64-release\.apk\"#href=\"multidesk-${VERSION}-aarch64-release.apk\"#g" "$INDEX"
   sed -i -E "s#href=\"MultiDesk-[0-9.]+-linux-x86_64\.AppImage\"#href=\"MultiDesk-${VERSION}-linux-x86_64.AppImage\"#g" "$INDEX"
   sed -i -E "s#href=\"MultiDesk-[0-9.]+-linux-amd64\.deb\"#href=\"MultiDesk-${VERSION}-linux-amd64.deb\"#g" "$INDEX"
+  sed -i -E "s#href=\"MultiDesk-[0-9.]+-linux-x86_64\.rpm\"#href=\"MultiDesk-${VERSION}-linux-x86_64.rpm\"#g" "$INDEX"
+  sed -i -E "s#href=\"MultiDesk-[0-9.]+-linux-x86_64\.tar\.gz\"#href=\"MultiDesk-${VERSION}-linux-x86_64.tar.gz\"#g" "$INDEX"
   echo "   index.html versioned links -> $VERSION"
 fi
 
 echo ">> Done. Verifying served files..."
 for f in multidesk-install.exe "multidesk-${VERSION}-aarch64-release.apk" MultiDesk.app.zip \
-         "MultiDesk-${VERSION}-linux-x86_64.AppImage" "MultiDesk-${VERSION}-linux-amd64.deb" version.json; do
+         "MultiDesk-${VERSION}-linux-x86_64.AppImage" "MultiDesk-${VERSION}-linux-amd64.deb" \
+         "MultiDesk-${VERSION}-linux-x86_64.rpm" "MultiDesk-${VERSION}-linux-x86_64.tar.gz" version.json; do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -I "$BASE_URL/$f" || echo 000)"
   echo "   $code  $f"
 done

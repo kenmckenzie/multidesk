@@ -203,6 +203,15 @@ jobs:
           tar -C flutter/build/linux/x64/release -czf "MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz" bundle
           mv "multidesk-${{ steps.version.outputs.version }}.deb" "MultiDesk-${{ steps.version.outputs.version }}-linux-amd64.deb"
 
+      - name: Build RPM package (Fedora/RHEL/openSUSE)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          # rpm-flutter.spec packages flutter/build/linux/x64/release/bundle via $HBB.
+          HBB="$(pwd)" rpmbuild ./res/rpm-flutter.spec -bb
+          RPM="$(ls "$HOME"/rpmbuild/RPMS/x86_64/multidesk-*.rpm | head -n 1)"
+          mv "$RPM" "MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.rpm"
+
       - name: Upload MultiDesk Linux artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -211,3 +220,4 @@ jobs:
             MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.AppImage
             MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
             MultiDesk-${{ steps.version.outputs.version }}-linux-amd64.deb
+            MultiDesk-${{ steps.version.outputs.version }}-linux-x86_64.rpm

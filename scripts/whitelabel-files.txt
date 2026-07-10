@@ -50,6 +50,9 @@ flutter/lib/desktop/pages/desktop_setting_page.dart
 res/rustdesk.desktop
 res/rustdesk-link.desktop
 
+# Linux RPM spec (MultiDesk name + multidesk binary symlink)
+res/rpm-flutter.spec
+
 # English UI strings with MultiDesk branding
 src/lang/en.rs
 

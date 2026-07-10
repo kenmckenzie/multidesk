@@ -1,10 +1,10 @@
-Name:       rustdesk
+Name:       multidesk
 Version:    1.4.9
 Release:    0
-Summary:    RPM package
+Summary:    MultiDesk remote desktop client
 License:    GPL-3.0
-URL:        https://rustdesk.com
-Vendor:     rustdesk <info@rustdesk.com>
+URL:        https://multidesk.multisaas.co.za
+Vendor:     MultiDesk <support@multisaas.co.za>
 Requires:   gtk3 libxcb libXfixes alsa-lib libva pam gstreamer1-plugins-base
 Recommends: libayatana-appindicator-gtk3 libxdo
 Provides:   libdesktop_drop_plugin.so()(64bit), libdesktop_multi_window_plugin.so()(64bit), libfile_selector_linux_plugin.so()(64bit), libflutter_custom_cursor_plugin.so()(64bit), libflutter_linux_gtk.so()(64bit), libscreen_retriever_plugin.so()(64bit), libtray_manager_plugin.so()(64bit), liburl_launcher_linux_plugin.so()(64bit), libwindow_manager_plugin.so()(64bit), libwindow_size_plugin.so()(64bit), libtexture_rgba_renderer_plugin.so()(64bit)
@@ -12,7 +12,7 @@ Provides:   libdesktop_drop_plugin.so()(64bit), libdesktop_multi_window_plugin.s
 # https://docs.fedoraproject.org/en-US/packaging-guidelines/Scriptlets/
 
 %description
-The best open-source remote desktop client software, written in Rust.
+MultiDesk remote desktop client.
 
 %prep
 # we have no source, so nothing here
@@ -29,7 +29,7 @@ mkdir -p "%{buildroot}/usr/bin"
 install -Dm 644 $HBB/res/rustdesk.service -t "%{buildroot}/usr/share/rustdesk/files"
 install -Dm 644 $HBB/res/rustdesk.desktop -t "%{buildroot}/usr/share/rustdesk/files"
 install -Dm 644 $HBB/res/rustdesk-link.desktop -t "%{buildroot}/usr/share/rustdesk/files"
-install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/rustdesk.png"
+install -Dm 644 $HBB/res/icon.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/rustdesk.png"
 install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/rustdesk.svg"
 
 %files
@@ -59,7 +59,9 @@ esac
 cp /usr/share/rustdesk/files/rustdesk.service /etc/systemd/system/rustdesk.service
 cp /usr/share/rustdesk/files/rustdesk.desktop /usr/share/applications/
 cp /usr/share/rustdesk/files/rustdesk-link.desktop /usr/share/applications/
-ln -sf /usr/share/rustdesk/rustdesk /usr/bin/rustdesk
+# The Flutter binary is named "multidesk" (BINARY_NAME); expose both names.
+ln -sf /usr/share/rustdesk/multidesk /usr/bin/multidesk
+ln -sf /usr/share/rustdesk/multidesk /usr/bin/rustdesk
 systemctl daemon-reload
 systemctl enable rustdesk
 systemctl start rustdesk
@@ -82,6 +84,7 @@ esac
 case "$1" in
   0)
     # for uninstall
+    rm /usr/bin/multidesk || true
     rm /usr/bin/rustdesk || true
     rmdir /usr/lib/rustdesk || true
     rmdir /usr/local/rustdesk || true
