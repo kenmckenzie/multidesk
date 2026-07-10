@@ -123,12 +123,22 @@ jobs:
       - name: Install build runtime
         if: steps.guard.outputs.run == 'true'
         run: |
-          brew install llvm nasm
+          brew install llvm
           if command -v pkg-config &>/dev/null; then
             echo "pkg-config already installed"
           else
             brew install pkg-config
           fi
+
+      - name: Install NASM 2.16 (aom requires NASM 2.x, not brew's 3.x)
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          # `brew install nasm` pulls NASM 3.x, which aom rejects
+          # ("Unsupported nasm: multipass optimization not supported").
+          wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip
+          unzip nasm-2.16.03-macosx.zip
+          sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          nasm --version
 
       - name: Install Flutter
         if: steps.guard.outputs.run == 'true'
